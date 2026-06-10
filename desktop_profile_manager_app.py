@@ -63,6 +63,13 @@ NSApplication.sharedApplication().setActivationPolicy_(NSApplicationActivationPo
 APP_NAME = "Desktop Profile Manager"
 APP_ICON = None  # Wird unten gesetzt falls vorhanden
 
+# Aktuelle App-Version (für die Update-Prüfung gegen GitHub-Releases).
+APP_VERSION = "1.2.0"
+# GitHub-Repository, dessen neuestes Release auf Updates geprüft wird.
+GITHUB_REPO = "nojan01/IconGuard"
+GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+GITHUB_RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases"
+
 PROFILES_DIR = Path.home() / ".iconguard"
 CONFIG_PATH = PROFILES_DIR / "_config.json"
 
@@ -1864,6 +1871,9 @@ class DesktopIconManagerApp(rumps.App):
         self.menu.add(rumps.MenuItem(
             L("Hilfe – Profil erstellen", "Help – create a profile"), callback=self.on_help))
         self.menu.add(rumps.MenuItem(
+            "⬆️ " + L("Nach Updates suchen …", "Check for updates …"),
+            callback=self.on_check_update))
+        self.menu.add(rumps.MenuItem(
             L("Über Desktop Profile Manager", "About Desktop Profile Manager"), callback=self.on_about))
         self.menu.add(rumps.MenuItem(L("Beenden", "Quit"), callback=self.on_quit))
 
@@ -2899,7 +2909,7 @@ class DesktopIconManagerApp(rumps.App):
             title=L("Über Desktop Profile Manager", "About Desktop Profile Manager"),
             message=L(
                 (
-                    "Desktop Profile Manager v1.2.0\n\n"
+                    f"Desktop Profile Manager v{APP_VERSION}\n\n"
                     "Arbeitsumgebungs-Manager für macOS:\n"
                     "• Desktop-Icon-Positionen speichern/wiederherstellen\n"
                     "• Icons einzeln verstecken\n"
@@ -2914,7 +2924,7 @@ class DesktopIconManagerApp(rumps.App):
                     "Lizenz: MIT"
                 ),
                 (
-                    "Desktop Profile Manager v1.2.0\n\n"
+                    f"Desktop Profile Manager v{APP_VERSION}\n\n"
                     "Work environment manager for macOS:\n"
                     "• Save/restore desktop icon positions\n"
                     "• Hide individual icons\n"
@@ -2931,6 +2941,144 @@ class DesktopIconManagerApp(rumps.App):
             ),
             ok="OK"
         )
+
+    # ── Update-Prüfung (GitHub-Releases) ──────────────────────────
+
+    @staticmethod
+    def _version_tuple(version: str):
+        """Wandelt z. B. ``"1.2.0"`` in ``(1, 2, 0)`` für den Vergleich um."""
+        parts = []
+        for chunk in str(version).strip().lstrip("vV").split("."):
+            num = "".join(ch for ch in chunk if ch.isdigit())
+            parts.append(int(num) if num else 0)
+        return tuple(parts)
+
+    @classmethod
+    def _version_gt(cls, a: str, b: str) -> bool:
+        """``True``, wenn Version ``a`` neuer ist als Version ``b``."""
+        ta, tb = cls._version_tuple(a), cls._version_tuple(b)
+        length = max(len(ta), len(tb))
+        ta += (0,) * (length - len(ta))
+        tb += (0,) * (length - len(tb))
+        return ta > tb
+
+    def on_check_update(self, _):
+        """Prüft im Hintergrund, ob ein neueres Release verfügbar ist."""
+        threading.Thread(target=self._check_update_worker, daemon=True).start()
+
+    def _check_update_worker(self):
+        from PyObjCTools import AppHelper
+        try:
+            out = subprocess.run(
+                ["/usr/bin/curl", "-sSL", "--max-time", "15",
+                 "-H", "Accept: application/vnd.github+json",
+                 "-H", "User-Agent: DesktopProfileManager",
+                 GITHUB_RELEASES_API],
+                capture_output=True, text=True, timeout=20,
+            )
+            if out.returncode != 0 or not out.stdout.strip():
+                AppHelper.callAfter(self._update_failed)
+                return
+            data = json.loads(out.stdout)
+        except Exception:
+            AppHelper.callAfter(self._update_failed)
+            return
+
+        latest = str(data.get("tag_name") or "").strip().lstrip("vV")
+        if not latest:
+            AppHelper.callAfter(self._update_failed)
+            return
+        asset_url = ""
+        for asset in (data.get("assets") or []):
+            url = asset.get("browser_download_url") or ""
+            if url.lower().endswith(".dmg"):
+                asset_url = url
+                break
+        available = self._version_gt(latest, APP_VERSION)
+        AppHelper.callAfter(self._update_result, latest, asset_url, available)
+
+    def _update_failed(self):
+        rumps.alert(
+            title=L("Update-Prüfung fehlgeschlagen", "Update check failed"),
+            message=L(
+                "Die Update-Informationen konnten nicht abgerufen werden.\n"
+                "Bitte später erneut versuchen oder die Releases-Seite öffnen.",
+                "Could not fetch update information.\n"
+                "Please try again later or open the releases page."),
+            ok="OK")
+
+    def _update_result(self, latest, asset_url, available):
+        if not available:
+            rumps.alert(
+                title=L("Keine Updates", "No updates"),
+                message=L(
+                    f"Du verwendest bereits die neueste Version (v{APP_VERSION}).",
+                    f"You are already using the latest version (v{APP_VERSION})."),
+                ok="OK")
+            return
+        if asset_url:
+            resp = rumps.alert(
+                title=L("Update verfügbar", "Update available"),
+                message=L(
+                    f"Version v{latest} ist verfügbar (installiert: v{APP_VERSION}).\n\n"
+                    "Soll die neue Version jetzt heruntergeladen und geöffnet werden?",
+                    f"Version v{latest} is available (installed: v{APP_VERSION}).\n\n"
+                    "Download and open the new version now?"),
+                ok=L("Herunterladen & öffnen", "Download & open"),
+                cancel=L("Abbrechen", "Cancel"))
+            if resp == 1:
+                threading.Thread(
+                    target=self._download_update_worker,
+                    args=(asset_url,), daemon=True).start()
+        else:
+            resp = rumps.alert(
+                title=L("Update verfügbar", "Update available"),
+                message=L(
+                    f"Version v{latest} ist verfügbar (installiert: v{APP_VERSION}).\n\n"
+                    "Releases-Seite im Browser öffnen?",
+                    f"Version v{latest} is available (installed: v{APP_VERSION}).\n\n"
+                    "Open the releases page in the browser?"),
+                ok=L("Seite öffnen", "Open page"),
+                cancel=L("Abbrechen", "Cancel"))
+            if resp == 1:
+                subprocess.Popen(["/usr/bin/open", GITHUB_RELEASES_URL])
+
+    def _download_update_worker(self, url):
+        from PyObjCTools import AppHelper
+        # Nur HTTPS-Downloads von GitHub-Releases zulassen.
+        allowed = (
+            url.startswith("https://github.com/")
+            or url.startswith("https://objects.githubusercontent.com/")
+            or url.startswith("https://release-assets.githubusercontent.com/")
+        )
+        if not allowed or not url.lower().endswith(".dmg"):
+            AppHelper.callAfter(self._update_failed)
+            return
+        raw_name = url.rsplit("/", 1)[-1] or "DesktopProfileManager_update.dmg"
+        safe_name = "".join(
+            ch for ch in raw_name
+            if ch.isalnum() or ch in (".", "_", "-")
+        )
+        if not (safe_name.lower().endswith(".dmg") and len(safe_name) > 4):
+            safe_name = "DesktopProfileManager_update.dmg"
+        dest_dir = Path.home() / "Downloads"
+        if not dest_dir.exists():
+            import tempfile
+            dest_dir = Path(tempfile.gettempdir())
+        dest = dest_dir / safe_name
+        try:
+            out = subprocess.run(
+                ["/usr/bin/curl", "-fsSL", "--max-time", "180",
+                 "-H", "User-Agent: DesktopProfileManager",
+                 "-o", str(dest), url],
+                capture_output=True, text=True, timeout=200,
+            )
+            if out.returncode != 0:
+                AppHelper.callAfter(self._update_failed)
+                return
+            subprocess.Popen(["/usr/bin/open", str(dest)])
+        except Exception:
+            AppHelper.callAfter(self._update_failed)
 
     def on_quit(self, _):
         self._stop_auto_restore()
