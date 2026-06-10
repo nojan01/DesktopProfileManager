@@ -1171,6 +1171,9 @@ LAUNCH_AGENT_PATH = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_AGENT_L
 # Altes Label aus früheren Versionen (für Migration/Aufräumen)
 OLD_LAUNCH_AGENT_LABEL = "com.iconguard.app"
 OLD_LAUNCH_AGENT_PATH = Path.home() / "Library" / "LaunchAgents" / f"{OLD_LAUNCH_AGENT_LABEL}.plist"
+# Noch ältere LaunchAgent-Labels aus der allerersten Projektphase, die heute ins
+# Leere zeigen (umbenannte Skripte) und daher entfernt werden müssen.
+OLD_LAUNCH_AGENT_LABELS = ["com.iconguard.app", "com.desktop-icon-manager.app"]
 # Alter Login-Item-Name (System Events) des Vorgängers „IconGuard"
 OLD_LOGIN_ITEM_NAME = "IconGuard"
 
@@ -1227,14 +1230,17 @@ def _remove_old_login_item() -> bool:
 
 
 def _cleanup_old_autostart():
-    """Entfernt Autostart-Reste des Vorgängers (LaunchAgent + Login-Item)."""
-    if OLD_LAUNCH_AGENT_PATH.exists():
-        subprocess.run(["launchctl", "unload", str(OLD_LAUNCH_AGENT_PATH)],
-                       capture_output=True)
-        try:
-            OLD_LAUNCH_AGENT_PATH.unlink()
-        except OSError:
-            pass
+    """Entfernt Autostart-Reste des Vorgängers (LaunchAgents + Login-Item)."""
+    agents_dir = Path.home() / "Library" / "LaunchAgents"
+    for label in OLD_LAUNCH_AGENT_LABELS:
+        old_path = agents_dir / f"{label}.plist"
+        if old_path.exists():
+            subprocess.run(["launchctl", "unload", str(old_path)],
+                           capture_output=True)
+            try:
+                old_path.unlink()
+            except OSError:
+                pass
     _remove_old_login_item()
 
 
@@ -3008,19 +3014,24 @@ class DesktopIconManagerApp(rumps.App):
         if self.config.get("migrated_iconguard", False):
             return
         try:
+            agents_dir = Path.home() / "Library" / "LaunchAgents"
+            had_old_agent = any(
+                (agents_dir / f"{label}.plist").exists()
+                for label in OLD_LAUNCH_AGENT_LABELS
+            )
             removed_login = _remove_old_login_item()
-            had_old_agent = OLD_LAUNCH_AGENT_PATH.exists()
             if removed_login or had_old_agent:
+                was_autostart = is_autostart_enabled() or had_old_agent
                 _cleanup_old_autostart()
-                if not is_autostart_enabled():
+                if was_autostart and not is_autostart_enabled():
                     enable_autostart()
                 rumps.notification(
                     APP_NAME,
                     L("Autostart übernommen", "Autostart migrated"),
-                    L("Der Autostart des Vorgängers IconGuard wurde durch "
+                    L("Alte Autostart-Reste wurden entfernt und durch "
                       "Desktop Profile Manager ersetzt.",
-                      "The autostart of the predecessor IconGuard was "
-                      "replaced by Desktop Profile Manager."))
+                      "Old autostart leftovers were removed and replaced "
+                      "by Desktop Profile Manager."))
         finally:
             self.config["migrated_iconguard"] = True
             save_config(self.config)
