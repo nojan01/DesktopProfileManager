@@ -1,9 +1,9 @@
 #!/bin/bash
 set -e
 
-APP_NAME="IconGuard"
-DMG_NAME="IconGuard"
-VERSION="1.1.0"
+APP_NAME="Desktop Profile Manager"
+DMG_NAME="DesktopProfileManager"
+VERSION="1.2.0"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -14,7 +14,7 @@ DMG_DIR="$SCRIPT_DIR/dmg_staging"
 DMG_OUTPUT="$SCRIPT_DIR/${DMG_NAME}-${VERSION}.dmg"
 
 echo "═══════════════════════════════════════════════"
-echo " IconGuard – Build & DMG"
+echo " Desktop Profile Manager – Build & DMG"
 echo "═══════════════════════════════════════════════"
 echo ""
 
@@ -75,12 +75,6 @@ cp -R "$APP_PATH" "$DMG_DIR/"
 # Symlink zu /Applications für Drag&Drop Installer
 ln -s /Applications "$DMG_DIR/Applications"
 
-# Hintergrund-Hinweis als versteckte Datei
-mkdir -p "$DMG_DIR/.background"
-cat > /tmp/dmg_readme.txt << 'EOF'
-Drag "IconGuard" to Applications to install.
-EOF
-
 # DMG erzeugen
 hdiutil create \
     -volname "${APP_NAME}" \
@@ -92,7 +86,6 @@ hdiutil create \
 
 # ─── 5. Aufräumen ────────────────────────────────────────────────
 rm -rf "$DMG_DIR"
-rm -f /tmp/dmg_readme.txt
 
 echo ""
 echo "═══════════════════════════════════════════════"
