@@ -90,6 +90,7 @@ DEFAULT_CONFIG = {
     "hotkey_modifier": "cmd_ctrl",  # Modifier: cmd_ctrl | ctrl | opt_cmd | ctrl_shift
     "auto_switch_enabled": False,  # Zeit-/WLAN-basiertes Umschalten
     "auto_switch_rules": [],   # Liste: {type:"time"|"wifi", value, profile}
+    "migrated_iconguard": False,  # Einmalige Migration des alten IconGuard-Autostarts
 }
 
 INTERVAL_OPTIONS = [5, 10, 15, 30, 60, 120, 240]
@@ -1170,6 +1171,8 @@ LAUNCH_AGENT_PATH = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_AGENT_L
 # Altes Label aus früheren Versionen (für Migration/Aufräumen)
 OLD_LAUNCH_AGENT_LABEL = "com.iconguard.app"
 OLD_LAUNCH_AGENT_PATH = Path.home() / "Library" / "LaunchAgents" / f"{OLD_LAUNCH_AGENT_LABEL}.plist"
+# Alter Login-Item-Name (System Events) des Vorgängers „IconGuard"
+OLD_LOGIN_ITEM_NAME = "IconGuard"
 
 
 def get_app_bundle_path() -> str | None:
@@ -1199,8 +1202,32 @@ def is_autostart_enabled() -> bool:
     return LAUNCH_AGENT_PATH.exists()
 
 
+def _remove_old_login_item() -> bool:
+    """Entfernt das alte „IconGuard"-Login-Item (macOS-Anmeldeobjekt).
+
+    Gibt ``True`` zurück, wenn tatsächlich ein Eintrag entfernt wurde.
+    """
+    try:
+        check = subprocess.run(
+            ["osascript", "-e",
+             f'tell application "System Events" to count '
+             f'(every login item whose name is "{OLD_LOGIN_ITEM_NAME}")'],
+            capture_output=True, text=True, timeout=10)
+        count = (check.stdout or "").strip()
+        if not count.isdigit() or int(count) <= 0:
+            return False
+        subprocess.run(
+            ["osascript", "-e",
+             f'tell application "System Events" to delete '
+             f'(every login item whose name is "{OLD_LOGIN_ITEM_NAME}")'],
+            capture_output=True, text=True, timeout=10)
+        return True
+    except Exception:
+        return False
+
+
 def _cleanup_old_autostart():
-    """Entfernt einen LaunchAgent aus früheren Versionen (com.iconguard.app)."""
+    """Entfernt Autostart-Reste des Vorgängers (LaunchAgent + Login-Item)."""
     if OLD_LAUNCH_AGENT_PATH.exists():
         subprocess.run(["launchctl", "unload", str(OLD_LAUNCH_AGENT_PATH)],
                        capture_output=True)
@@ -1208,6 +1235,7 @@ def _cleanup_old_autostart():
             OLD_LAUNCH_AGENT_PATH.unlink()
         except OSError:
             pass
+    _remove_old_login_item()
 
 
 def enable_autostart():
@@ -1492,6 +1520,7 @@ class DesktopIconManagerApp(rumps.App):
         self._last_auto_switch = None
         self._active_profile = None
         self._build_menu()
+        self._migrate_old_iconguard()
         if self.config["auto_restore_enabled"]:
             self._start_auto_restore()
         if self.config.get("restore_on_login", True):
@@ -2964,6 +2993,37 @@ class DesktopIconManagerApp(rumps.App):
             ),
             ok="OK"
         )
+
+    # ── Migration: alter IconGuard-Autostart ──────────────────────
+
+    def _migrate_old_iconguard(self):
+        """Stellt einen alten IconGuard-Autostart auf diese App um.
+
+        Der Vorgänger „IconGuard" trug sich als Anmeldeobjekt (Login-Item)
+        ein, das die alte ``/Applications/IconGuard.app`` startete. Diese
+        einmalige Migration entfernt das alte Login-Item (und einen evtl.
+        vorhandenen alten LaunchAgent) und aktiviert – damit der Autostart
+        erhalten bleibt – den Autostart von Desktop Profile Manager.
+        """
+        if self.config.get("migrated_iconguard", False):
+            return
+        try:
+            removed_login = _remove_old_login_item()
+            had_old_agent = OLD_LAUNCH_AGENT_PATH.exists()
+            if removed_login or had_old_agent:
+                _cleanup_old_autostart()
+                if not is_autostart_enabled():
+                    enable_autostart()
+                rumps.notification(
+                    APP_NAME,
+                    L("Autostart übernommen", "Autostart migrated"),
+                    L("Der Autostart des Vorgängers IconGuard wurde durch "
+                      "Desktop Profile Manager ersetzt.",
+                      "The autostart of the predecessor IconGuard was "
+                      "replaced by Desktop Profile Manager."))
+        finally:
+            self.config["migrated_iconguard"] = True
+            save_config(self.config)
 
     # ── Update-Prüfung (GitHub-Releases) ──────────────────────────
 
