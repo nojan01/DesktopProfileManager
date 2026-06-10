@@ -1847,6 +1847,11 @@ class DesktopIconManagerApp(rumps.App):
             lang_menu.add(item)
         settings_menu.add(lang_menu)
 
+        # Nach Updates suchen (unterhalb der Sprachumschaltung)
+        settings_menu.add(rumps.MenuItem(
+            "⬆️ " + L("Nach Updates suchen …", "Check for updates …"),
+            callback=self.on_check_update))
+
         settings_menu.add(rumps.separator)
 
         # Status
@@ -1870,9 +1875,6 @@ class DesktopIconManagerApp(rumps.App):
         self.menu.add(rumps.separator)
         self.menu.add(rumps.MenuItem(
             L("Hilfe – Profil erstellen", "Help – create a profile"), callback=self.on_help))
-        self.menu.add(rumps.MenuItem(
-            "⬆️ " + L("Nach Updates suchen …", "Check for updates …"),
-            callback=self.on_check_update))
         self.menu.add(rumps.MenuItem(
             L("Über Desktop Profile Manager", "About Desktop Profile Manager"), callback=self.on_about))
         self.menu.add(rumps.MenuItem(L("Beenden", "Quit"), callback=self.on_quit))
@@ -2779,7 +2781,28 @@ class DesktopIconManagerApp(rumps.App):
         self._build_menu()
 
     def on_toggle_quit_other_apps(self, sender):
-        self.config["quit_other_apps"] = not self.config.get("quit_other_apps", False)
+        will_enable = not self.config.get("quit_other_apps", False)
+        if will_enable:
+            # Warnung: Beenden kann zu Datenverlust führen.
+            resp = rumps.alert(
+                title=L("Achtung: Datenverlust möglich",
+                        "Warning: possible data loss"),
+                message=L(
+                    "Wenn andere Apps beim Profilwechsel beendet werden, gehen "
+                    "ungespeicherte Inhalte (z. B. offene Texte oder Dokumente) "
+                    "in diesen Apps verloren.\n\n"
+                    "Möchtest du diese Option wirklich aktivieren?",
+                    "If other apps are quit when switching profiles, any unsaved "
+                    "content (e.g. open texts or documents) in those apps will be "
+                    "lost.\n\n"
+                    "Do you really want to enable this option?"),
+                ok=L("Aktivieren", "Enable"),
+                cancel=L("Abbrechen", "Cancel"))
+            if resp != 1:
+                # Abgebrochen: Zustand unverändert lassen.
+                self._build_menu()
+                return
+        self.config["quit_other_apps"] = will_enable
         save_config(self.config)
         state = self.config["quit_other_apps"]
         if state:
