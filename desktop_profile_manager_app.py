@@ -2974,12 +2974,12 @@ class DesktopIconManagerApp(rumps.App):
                  "-H", "Accept: application/vnd.github+json",
                  "-H", "User-Agent: DesktopProfileManager",
                  GITHUB_RELEASES_API],
-                capture_output=True, text=True, timeout=20,
+                capture_output=True, timeout=20,
             )
             if out.returncode != 0 or not out.stdout.strip():
                 AppHelper.callAfter(self._update_failed)
                 return
-            data = json.loads(out.stdout)
+            data = json.loads(out.stdout.decode("utf-8", "replace"))
         except Exception:
             AppHelper.callAfter(self._update_failed)
             return
@@ -3071,7 +3071,7 @@ class DesktopIconManagerApp(rumps.App):
                 ["/usr/bin/curl", "-fsSL", "--max-time", "180",
                  "-H", "User-Agent: DesktopProfileManager",
                  "-o", str(dest), url],
-                capture_output=True, text=True, timeout=200,
+                capture_output=True, timeout=200,
             )
             if out.returncode != 0:
                 AppHelper.callAfter(self._update_failed)
