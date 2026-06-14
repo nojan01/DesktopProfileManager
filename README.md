@@ -1,80 +1,80 @@
 # Desktop Profile Manager
 
-macOS Menu Bar App zum Speichern und Wiederherstellen kompletter Arbeitsumgebungen – Desktop-Icon-Positionen, Hintergrund und Apps.
+Native **Swift/AppKit** macOS Menu Bar App zum Speichern und Wiederherstellen kompletter Arbeitsumgebungen – Desktop-Icon-Positionen, Hintergrund, Apps und Systemzustand.
 
 ## Features
 
 - **Profile speichern** – Desktop-Icon-Positionen als benannte Profile sichern
 - **Profile wiederherstellen** – Gespeicherte Positionen jederzeit wiederherstellen
 - **Schnellauswahl** – Profile direkt aus dem Menüleisten-Icon laden; das aktive Profil wird blau hervorgehoben
-- **Emoji-Symbole** – Jedem Profil ein eigenes Emoji als Erkennungssymbol zuweisen (per Klick-Emoji-Auswahl)
+- **Profil-Widget** – Schwebendes Panel auf dem Desktop mit einem Button pro Profil zum direkten Anklicken (frei verschiebbar, Position wird gemerkt); zwei Varianten: normal (Emoji + Name) oder kompakt (nur Emojis) zum Platzsparen
+- **Emoji-Symbole** – Jedem Profil ein eigenes Emoji als Erkennungssymbol zuweisen
 - **Desktop-Hintergrund** – Hintergrundbild pro Profil speichern & wiederherstellen
-- **Apps & Fenster** – Laufende Apps inkl. Fensterposition/-größe sichern und beim Wiederherstellen starten
+- **Apps & Fenster** – Laufende Apps inkl. Fensterposition/-größe sichern und beim Wiederherstellen starten (optional andere Apps ausblenden/beenden)
+- **Systemzustand** – Dark Mode, Lautstärke, Helligkeit, Nicht stören, Dock und Desktop-Ansicht pro Profil sichern
 - **Icons verstecken** – Einzelne Desktop-Dateien ein-/ausblenden
 - **Tastenkombinationen** – Die ersten 9 Profile per Hotkey laden (Modifier wählbar: ⌘⌃, ⌃, ⌥⌘, ⌃⇧)
 - **Auto-Umschalten** – Profile automatisch nach Uhrzeit (Zeitregeln) oder nach verbundenem WLAN laden
 - **Auto-Restore** – Automatische Wiederherstellung in konfigurierbaren Intervallen (5–240 Min)
 - **Autostart** – Optionaler Start beim Login via macOS LaunchAgent
 - **Menüleisten-App** – Läuft unauffällig in der Menüleiste (kein Dock-Icon)
-- **CLI-Modus** – Kommandozeilen-Interface für Scripting
+- **Mehrsprachig** – Deutsch/Englisch (folgt der Systemsprache, manuell umschaltbar)
 
-> **Hinweis:** Für das Speichern/Wiederherstellen von Fensterpositionen muss Desktop Profile Manager
-> in den Systemeinstellungen unter *Datenschutz & Sicherheit › Bedienungshilfen* freigegeben sein.
+> **Hinweis:** Für das Speichern/Wiederherstellen von Fensterpositionen und für
+> Tastenkombinationen muss Desktop Profile Manager in den Systemeinstellungen unter
+> *Datenschutz & Sicherheit › Bedienungshilfen* freigegeben sein.
 > Apps werden nur bei manuellem Restore und beim Login gestartet – nicht bei jedem Auto-Restore.
 
 ## Installation
 
 ### DMG (empfohlen)
-1. `build_dmg.sh` ausführen (erfordert Python 3 + venv)
-2. Die erstellte `DesktopProfileManager-1.2.0.dmg` öffnen
+1. Das Script `build_dmg.sh` ausführen
+2. Die erstellte `DesktopProfileManager-Swift-1.2.0.dmg` öffnen
 3. App nach `/Programme` ziehen
 4. Aus Launchpad starten
 
 ### Entwicklung
 ```bash
-# Setup
-python3 -m venv .venv
-source .venv/bin/activate
-pip install rumps pyobjc-framework-Cocoa
+# App bauen und als .app-Bundle verpacken
+./build_app.sh
+open "dist/Desktop Profile Manager.app"
 
-# GUI starten
-python3 desktop_profile_manager_app.py
+# Oder direkt mit dem Swift Package Manager bauen/starten
+swift build
+swift run
 
-# CLI nutzen
-python3 desktop_profile_manager_cli.py save "Mein Profil"      # Icons, Hintergrund & Apps sichern
-python3 desktop_profile_manager_cli.py restore "Mein Profil"   # alles wiederherstellen
-python3 desktop_profile_manager_cli.py restore "Mein Profil" --no-apps        # ohne Apps zu starten
-python3 desktop_profile_manager_cli.py restore "Mein Profil" --no-wallpaper   # ohne Hintergrund
-python3 desktop_profile_manager_cli.py show "Mein Profil"      # Details inkl. Apps/Hintergrund
-python3 desktop_profile_manager_cli.py list
+# DMG-Installationsimage erstellen
+./build_dmg.sh
 ```
 
-### CLI-Optionen für `restore`
+## Daten
 
-| Option | Wirkung |
-|--------|---------|
-| `--no-apps` | Gespeicherte Apps werden nicht gestartet |
-| `--no-wallpaper` | Desktop-Hintergrund wird nicht geändert |
+Profile und Einstellungen liegen unter:
 
-## Dateien
+```
+~/.iconguard/
+  <Profilname>.json     # einzelne Profile
+  _config.json          # Einstellungen
+```
 
-| Datei | Beschreibung |
-|-------|-------------|
-| `desktop_profile_manager_app.py` | Haupt-App (Menüleiste) |
-| `desktop_profile_manager_cli.py` | CLI-Version |
-| `setup_app.py` | py2app Build-Konfiguration |
-| `build_dmg.sh` | Build-Script für .app + DMG |
-| `create_icon.py` | Icon-Generator (icns + png) |
-| `setup.py` | venv + Dependency Installer |
-| `start.sh` | Schnellstart-Script |
+## Projektstruktur
+
+| Pfad | Beschreibung |
+|------|-------------|
+| `Sources/DesktopProfileManager/` | Quellcode (Swift/AppKit) |
+| `Resources/` | Hilfe-Dateien (HTML, DE/EN) |
+| `Package.swift` | Swift Package Manager Konfiguration |
+| `build_app.sh` | Build-Script für das `.app`-Bundle |
+| `build_dmg.sh` | Build-Script für `.app` + DMG |
 
 ## Technologie
 
-- Python 3 + [rumps](https://github.com/jaredks/rumps) (Menu Bar Framework)
-- AppleScript für Finder-Integration (`desktop position`), Hintergrund und Fenster (`System Events`)
-- `NSWorkspace` (PyObjC) zum Erfassen laufender Apps
-- py2app für macOS .app Bundle
+- Swift 5.9 + AppKit (Menüleisten-App via `NSStatusItem`)
+- Swift Package Manager (`.executableTarget`)
+- `NSWorkspace` zum Erfassen laufender Apps
+- AppleScript für Finder-Integration (Desktop-Icon-Positionen), Hintergrund und Fenster
 - macOS LaunchAgent für Autostart
+- Ziel-OS: macOS 12+
 
 ## Lizenz
 

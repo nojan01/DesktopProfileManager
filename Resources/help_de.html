@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Desktop Profile Manager – Hilfe</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6; max-width: 820px; margin: 0 auto; padding: 32px 24px 64px;
+    color: #1d1d1f; background: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; background: #1e1e1e; }
+    a { color: #6ab0ff; }
+    code, .path { background: #2c2c2e; }
+    h2 { border-color: #3a3a3c; }
+    table td, table th { border-color: #3a3a3c; }
+  }
+  h1 { font-size: 1.9em; margin-top: 0; }
+  h2 { font-size: 1.35em; margin-top: 2em; border-bottom: 1px solid #e0e0e0; padding-bottom: .25em; }
+  h3 { font-size: 1.1em; margin-top: 1.6em; }
+  a { color: #0066cc; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, .path { background: #f1f1f3; border-radius: 4px; padding: 1px 5px; font-size: .92em; }
+  .path { display: inline-block; }
+  pre { background: #f1f1f3; border-radius: 8px; padding: 12px 16px; overflow-x: auto; }
+  @media (prefers-color-scheme: dark) { pre { background: #2c2c2e; } }
+  ul { padding-left: 1.4em; }
+  .note { background: rgba(0,122,255,.08); border-left: 3px solid #007aff; padding: 10px 16px; border-radius: 6px; margin: 1em 0; }
+  .toc { background: rgba(127,127,127,.08); border-radius: 8px; padding: 12px 20px; }
+  .toc ul { margin: .3em 0; }
+  footer { margin-top: 3em; padding-top: 1em; border-top: 1px solid #e0e0e0; font-size: .9em; color: #888; }
+  kbd { background: #f1f1f3; border: 1px solid #ccc; border-radius: 4px; padding: 1px 6px; font-size: .85em; }
+  @media (prefers-color-scheme: dark) { kbd { background: #2c2c2e; border-color: #555; } }
+</style>
+</head>
+<body>
+
+<h1>Desktop Profile Manager – Hilfe &amp; Bedienungsanleitung</h1>
+
+<p>Desktop Profile Manager ist eine <strong>Menüleisten-App</strong> für macOS, mit der du
+komplette Arbeitsumgebungen als <strong>Profile</strong> speicherst und mit einem Klick
+wiederherstellst: Desktop-Icon-Positionen, versteckte Icons, Hintergrundbild, gestartete
+Apps inkl. Fensterposition sowie diverse Systemeinstellungen.</p>
+
+<p>Die App hat <strong>kein Dock-Symbol</strong>. Du bedienst sie ausschließlich über das
+Symbol in der macOS-Menüleiste oben rechts. Ein Klick darauf öffnet das Menü.</p>
+
+<div class="toc">
+<strong>Inhalt</strong>
+<ul>
+  <li><a href="#start">Erste Schritte</a></li>
+  <li><a href="#rechte">Benötigte Berechtigungen</a></li>
+  <li><a href="#menue">Das Menü im Überblick</a></li>
+  <li><a href="#schnell">Profil-Schnellauswahl</a></li>
+  <li><a href="#einstellungen">Einstellungen (alle Menüpunkte)</a></li>
+  <li><a href="#hub">Hilfe / Über / Beenden</a></li>
+  <li><a href="#fenster">Das Profil-Erstellungs-Fenster</a></li>
+  <li><a href="#daten">Wo werden meine Daten gespeichert?</a></li>
+  <li><a href="#faq">Häufige Fragen (FAQ)</a></li>
+</ul>
+</div>
+
+<h2 id="start">Erste Schritte</h2>
+<ul>
+  <li>App starten – das Symbol erscheint oben rechts in der Menüleiste.</li>
+  <li>Desktop-Icons so anordnen, wie du sie haben möchtest.</li>
+  <li><strong>Einstellungen › Profil speichern › Neues Profil …</strong> wählen.</li>
+  <li>Namen und Emoji vergeben, Inhalte auswählen, speichern.</li>
+  <li>Profil später über das Menü oder das Widget per Klick wiederherstellen.</li>
+</ul>
+
+<h2 id="rechte">Benötigte Berechtigungen</h2>
+<p>Für die volle Funktion benötigt die App die Berechtigung <strong>Bedienungshilfen</strong>
+(Systemeinstellungen › Datenschutz &amp; Sicherheit › Bedienungshilfen). Sie wird benötigt, um
+Fensterpositionen/-größen von Apps zu lesen und wiederherzustellen sowie Apps ein-/auszublenden.</p>
+<p>Beim ersten Start, der diese Funktionen nutzt, fragt macOS automatisch nach der Erlaubnis.
+Ohne diese Berechtigung funktionieren Icon-Positionen, Hintergrundbild und App-Start weiterhin –
+nur die exakte Fensterwiederherstellung nicht.</p>
+
+<h2 id="menue">Das Menü im Überblick</h2>
+<p>Das Menü besteht von oben nach unten aus:</p>
+<ul>
+  <li><strong>Profil-Schnellauswahl</strong> – alle Profile zum direkten Wiederherstellen.</li>
+  <li><strong>⚙️ Einstellungen</strong> – das große Untermenü mit allen Funktionen.</li>
+  <li><strong>Hilfe</strong> – öffnet diese Anleitung.</li>
+  <li><strong>Über Desktop Profile Manager</strong> – Versions- und Lizenzinfos.</li>
+  <li><strong>Beenden</strong> – App schließen.</li>
+</ul>
+
+<h2 id="schnell">Profil-Schnellauswahl</h2>
+<p>Ganz oben im Menü stehen alle gespeicherten Profile, jeweils mit einem <code>▶︎</code>-Symbol,
+dem gewählten Emoji und dem Profilnamen.</p>
+<ul>
+  <li><strong>Klick auf ein Profil</strong> stellt es sofort wieder her.</li>
+  <li>Das <strong>aktive Profil</strong> ist farblich hervorgehoben.</li>
+  <li>Bei aktivierten <strong>Kurzbefehlen</strong> steht rechts die Tastenkombination (z. B. <kbd>⌘⌃1</kbd>).</li>
+</ul>
+
+<h2 id="einstellungen">Einstellungen</h2>
+<p>Alle folgenden Punkte befinden sich im Untermenü <strong>⚙️ Einstellungen</strong>.</p>
+
+<h3>💾 Profil speichern</h3>
+<ul>
+  <li><strong>Neues Profil …</strong> – Öffnet das Profil-Erstellungs-Fenster (Name, Emoji, Inhalte,
+    optional WLAN-Zuordnung und App-Auswahl).</li>
+  <li><strong>Überschreiben: &lt;Profil&gt;</strong> – Speichert den aktuellen Desktop-Zustand in ein
+    vorhandenes Profil und übernimmt dessen bisherige Einstellungen.</li>
+</ul>
+
+<h3>🔄 Profil wiederherstellen</h3>
+<p>Listet alle Profile auf. Ein Klick stellt das gewählte Profil wieder her – identisch zur
+Schnellauswahl oben, nur gebündelt im Untermenü.</p>
+
+<h3>👁 Desktop-Icons ein-/ausblenden …</h3>
+<p>Öffnet ein Fenster mit allen Objekten auf dem Schreibtisch. Pro Eintrag legst du fest, ob das
+Icon sichtbar oder versteckt sein soll. Der Zustand kann Teil eines Profils werden.</p>
+
+<h3>🚀 Apps für Profile auswählen …</h3>
+<p>Öffnet ein Fenster mit allen laufenden Apps und definiert eine globale <strong>Ausschlussliste</strong>:
+Abgehakte Apps werden beim Speichern neuer Profile nicht mit erfasst.</p>
+
+<h3>🧩 Profil-Widget anzeigen</h3>
+<p>Blendet ein frei verschiebbares Widget mit je einem Knopf pro Profil ein.</p>
+<ul>
+  <li>Randlos und transparent – sichtbar sind nur die Knöpfe.</li>
+  <li>Per Ziehen verschiebbar; die Position wird gespeichert.</li>
+  <li>Das aktive Profil ist hervorgehoben; die Sichtbarkeit bleibt über Neustarts erhalten.</li>
+</ul>
+
+<h3>🔳 Widget kompakt (nur Emojis)</h3>
+<p>Schaltet das Widget zwischen <strong>normaler</strong> Ansicht (Emoji + Name) und <strong>kompakter</strong>
+Ansicht (große Emojis ohne Text, Name als Tooltip) um.</p>
+
+<h3>⏱ Auto-Wiederherstellen</h3>
+<p>Aktiviert die automatische, regelmäßige Wiederherstellung des gewählten Auto-Restore-Profils im
+eingestellten Intervall.</p>
+
+<h3>⏰ Intervall</h3>
+<p>Legt fest, wie oft das Auto-Wiederherstellen läuft (5–240 Minuten). Der aktive Wert ist mit einem
+Häkchen markiert.</p>
+
+<h3>📋 Auto-Restore-Profil</h3>
+<p>Bestimmt, welches Profil beim automatischen Wiederherstellen, beim Login und nach dem Ruhemodus
+verwendet wird.</p>
+
+<h3>✏️ Profil bearbeiten</h3>
+<p>Öffnet das Bearbeiten-Fenster für das gewählte Profil. Wichtig:</p>
+<ul>
+  <li>Gespeicherte Icon-Positionen, versteckte Icons und Hintergrundbild bleiben erhalten – der
+    Desktop wird nicht neu erfasst.</li>
+  <li>Geändert werden nur Name, Emoji, WLAN-Zuordnung, App-Auswahl, Systemzustände und Inhalts-Optionen.</li>
+  <li>Profile können hier auch umbenannt werden.</li>
+</ul>
+
+<h3>🗑 Profil löschen</h3>
+<p>Entfernt das gewählte Profil nach einer Sicherheitsabfrage endgültig. Dies kann nicht rückgängig
+gemacht werden.</p>
+
+<h3>📤 Profil exportieren</h3>
+<p>Speichert das gewählte Profil als <code>.json</code>-Datei an einem von dir gewählten Ort – zum Sichern
+oder Weitergeben.</p>
+
+<h3>📥 Profil importieren …</h3>
+<p>Lädt eine zuvor exportierte <code>.json</code>-Profildatei und fügt sie deinen Profilen hinzu.</p>
+
+<h3>Wiederherstellungs-Schalter</h3>
+<ul>
+  <li><strong>🔁 Beim Login Icons wiederherstellen</strong> – Wendet beim Anmelden das Auto-Restore-Profil an.</li>
+  <li><strong>😴 Nach Ruhemodus wiederherstellen</strong> – Stellt nach dem Aufwachen wieder her.</li>
+  <li><strong>🖼 Hintergrund mit wiederherstellen</strong> – Setzt auch das gespeicherte Hintergrundbild.</li>
+  <li><strong>🚀 Apps beim Wiederherstellen starten</strong> – Startet die gespeicherten Apps und stellt deren Fenster wieder her.</li>
+  <li><strong>🙈 Andere Apps beim Wechsel ausblenden</strong> – Blendet fremde Apps aus (wie <kbd>⌘H</kbd>), ohne sie zu beenden.</li>
+  <li><strong>⛔ Andere Apps beim Wechsel beenden</strong> – Beendet fremde Apps (Vorsicht: ungespeicherte Arbeit kann verloren gehen).</li>
+</ul>
+<div class="note">Hinweis: <em>Ausblenden</em> und <em>Beenden</em> schließen sich sinnvoll aus – wähle
+in der Regel höchstens eine der beiden Optionen.</div>
+
+<h3>⏳ App-Startverzögerung</h3>
+<p>Bestimmt die Pause zwischen dem Starten einzelner Apps (Keine bis 5 Sekunden). Eine größere
+Verzögerung entlastet das System bei vielen Programmen.</p>
+
+<h3>🔓 Beim Anmelden starten</h3>
+<p>Richtet einen LaunchAgent ein, damit die App automatisch beim Anmelden startet.</p>
+
+<h3>⌨️ Kurzbefehle 1–9</h3>
+<p>Aktiviert globale Tastenkürzel: Modifikator + Tasten <strong>1–9</strong> stellen die ersten neun Profile
+direkt wieder her – egal, welche App im Vordergrund ist.</p>
+
+<h3>⌨️ Tastenkombination</h3>
+<p>Wählt den Modifikator für die Kurzbefehle: <kbd>⌘⌃</kbd>, <kbd>⌃</kbd>, <kbd>⌥⌘</kbd> oder <kbd>⌃⇧</kbd>,
+jeweils mit 1–9.</p>
+
+<h3>🕓 Auto-Umschalten (Zeit/WLAN)</h3>
+<ul>
+  <li><strong>Aktiviert</strong> – schaltet die gesamte Auto-Umschaltung ein/aus.</li>
+  <li><strong>➕ Zeitregel hinzufügen …</strong> – Aktiviert zu einer bestimmten Uhrzeit/Zeitspanne ein Profil.</li>
+  <li><strong>📶 WLAN: im Profil bearbeiten festlegen</strong> – Die WLAN-Zuordnung legst du pro Profil im
+    Feld <em>WLAN-Name</em> fest. Beim Verbinden mit diesem WLAN wird das Profil aktiviert.</li>
+  <li>Darunter werden aktive WLAN-Zuordnungen sowie angelegte Regeln aufgelistet; ein Klick auf eine
+    Regel mit dem Zusatz <em>(löschen)</em> entfernt sie.</li>
+</ul>
+
+<h3>🌐 Sprache</h3>
+<p>Stellt die Oberflächensprache ein: <strong>System</strong> (folgt dem Mac), <strong>Deutsch</strong> oder
+<strong>Englisch</strong>. Diese Hilfe öffnet sich in der jeweils gewählten Sprache.</p>
+
+<h3>⬆️ Nach Updates suchen …</h3>
+<p>Prüft online, ob eine neuere Version verfügbar ist, und zeigt das Ergebnis an.</p>
+
+<h3>ℹ️ Statuszeile</h3>
+<p>Reine Anzeige (nicht klickbar): zeigt, ob das Auto-Wiederherstellen aktiv ist und – falls ja – mit
+welchem Profil und Intervall.</p>
+
+<h2 id="hub">Hilfe / Über / Beenden</h2>
+<ul>
+  <li><strong>Hilfe</strong> – öffnet diese Anleitung im Browser.</li>
+  <li><strong>Über Desktop Profile Manager</strong> – Version, Funktionsüberblick, Bedienungshilfen-Hinweis,
+    Copyright (© 2026 Norbert Jander) und Lizenz (MIT).</li>
+  <li><strong>Beenden</strong> – schließt die App (<kbd>⌘Q</kbd> bei geöffnetem Menü).</li>
+</ul>
+
+<h2 id="fenster">Das Profil-Erstellungs-Fenster im Detail</h2>
+<ul>
+  <li><strong>Emoji-Feld</strong> – das Symbol vor dem Profilnamen. Der <strong>😀-Knopf</strong> öffnet die
+    macOS-Emoji-Auswahl.</li>
+  <li><strong>Profilname</strong> – Anzeigename (Pflichtfeld).</li>
+  <li><strong>WLAN-Name (optional)</strong> – Profil wird beim Verbinden mit diesem Netzwerk automatisch
+    geladen (sofern Auto-Umschalten aktiv ist).</li>
+  <li><strong>Was speichern/wiederherstellen?</strong> – Icon-Positionen, versteckte Icons, Hintergrundbild, Apps.</li>
+  <li><strong>Systemzustand</strong> – Dark Mode, Lautstärke, Helligkeit, „Nicht stören", Dock, Desktop-Ansicht.</li>
+  <li><strong>App-Liste</strong> – welche laufenden Apps zum Profil gehören (mit <em>Alle auswählen</em>).</li>
+</ul>
+
+<h2 id="daten">Wo werden meine Daten gespeichert?</h2>
+<pre>~/.iconguard/
+  &lt;Profilname&gt;.json     # je ein Profil pro Datei
+  _config.json          # globale Einstellungen</pre>
+<p>Die Profile sind mit der ursprünglichen Python-Variante austauschbar – beide Programme verwenden
+dasselbe Verzeichnis und Format.</p>
+
+<h2 id="faq">Häufige Fragen (FAQ)</h2>
+<p><strong>Das App-Symbol steht nicht ganz links in der Menüleiste.</strong><br>
+Halte <kbd>⌘</kbd> gedrückt und ziehe das Symbol an die gewünschte Stelle. macOS merkt sich die Position.</p>
+<p><strong>Eine App (z. B. Safari) startet beim Wiederherstellen nicht.</strong><br>
+Apps werden bevorzugt über ihre Bundle-ID gestartet. Stelle sicher, dass <em>Apps beim Wiederherstellen
+starten</em> aktiviert ist.</p>
+<p><strong>Fensterpositionen werden nicht wiederhergestellt.</strong><br>
+Erteile der App die Berechtigung unter <em>Datenschutz &amp; Sicherheit › Bedienungshilfen</em>.</p>
+<p><strong>Das Widget ist nach einem Neustart ausgeblendet.</strong><br>
+Die Sichtbarkeit wird dauerhaft gespeichert. Schalte das Widget über <em>Einstellungen › Profil-Widget
+anzeigen</em> wieder ein.</p>
+
+<footer>Copyright © 2026 Norbert Jander · Lizenz: MIT</footer>
+
+</body>
+</html>
