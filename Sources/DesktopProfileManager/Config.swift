@@ -23,6 +23,7 @@ final class Config {
         "auto_restore_enabled": false,
         "auto_restore_profile": "default",
         "auto_restore_interval_minutes": 30,
+        "auto_restore_icons_only": false,
         "restore_on_login": true,
         "restore_on_wake": true,
         "restore_wallpaper": true,

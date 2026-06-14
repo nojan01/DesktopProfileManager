@@ -92,8 +92,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard config.get("restore_on_wake", true) else { return }
         let profile = config.get("auto_restore_profile", "")
         if !profile.isEmpty, Profiles.profilePath(profile).map({ FileManager.default.fileExists(atPath: $0.path) }) == true {
+            let iconsOnly = config.get("auto_restore_icons_only", false)
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                self.doRestore(profile, notify: false)
+                self.doRestore(profile, notify: false, iconsOnly: iconsOnly)
             }
         }
     }
@@ -205,6 +206,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         autoItem.state = config.get("auto_restore_enabled", false) ? .on : .off
         settings.addItem(autoItem)
 
+        // Nur Desktop-Symbole wiederherstellen (kein Hintergrund/Apps/Systemzustand)
+        let iconsOnlyItem = NSMenuItem(title: "🧩 " + L("Auto-Restore nur Desktop-Symbole",
+                                                       "Auto restore desktop icons only"),
+                                       action: #selector(onToggleAutoRestoreIconsOnly), keyEquivalent: "")
+        iconsOnlyItem.target = self
+        iconsOnlyItem.state = config.get("auto_restore_icons_only", false) ? .on : .off
+        settings.addItem(iconsOnlyItem)
+
         // Intervall
         let intervalMenu = NSMenu()
         let intervalItem = NSMenuItem(title: "⏰ " + L("Intervall", "Interval"), action: nil, keyEquivalent: "")
@@ -230,6 +239,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if profiles.isEmpty {
             autoProfileMenu.addItem(NSMenuItem(title: L("(erst ein Profil speichern)", "(save a profile first)"), action: nil, keyEquivalent: ""))
         } else {
+            // „Kein“ – Auto-Restore-Profil abwählen (schaltet automatische Wiederherstellung aus)
+            let noneItem = NSMenuItem(title: L("(Kein)", "(None)"), action: #selector(onSetAutoProfile(_:)), keyEquivalent: "")
+            noneItem.target = self
+            noneItem.representedObject = ""
+            noneItem.state = currentAutoProfile.isEmpty ? .on : .off
+            autoProfileMenu.addItem(noneItem)
+            autoProfileMenu.addItem(.separator())
             for p in profiles {
                 let item = NSMenuItem(title: p.name, action: #selector(onSetAutoProfile(_:)), keyEquivalent: "")
                 item.target = self
@@ -421,11 +437,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Status
         let statusText: String
-        if config.get("auto_restore_enabled", false) {
+        let autoProf = config.get("auto_restore_profile", "")
+        if config.get("auto_restore_enabled", false) && !autoProf.isEmpty {
             let iv = config.get("auto_restore_interval_minutes", 30)
-            let prof = config.get("auto_restore_profile", "")
             let ivText = iv < 60 ? L("alle \(iv) Min.", "every \(iv) min") : L("alle \(iv / 60) Std.", "every \(iv / 60) h")
-            statusText = L("Auto: '\(prof)' \(ivText)", "Auto: '\(prof)' \(ivText)")
+            let scope = config.get("auto_restore_icons_only", false) ? L(" (nur Symbole)", " (icons only)") : ""
+            statusText = L("Auto: '\(autoProf)' \(ivText)\(scope)", "Auto: '\(autoProf)' \(ivText)\(scope)")
         } else {
             statusText = L("Auto-Restore: Aus", "Auto restore: off")
         }
@@ -466,7 +483,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         doRestore(name, markActive: true)
     }
 
-    func doRestore(_ name: String, notify: Bool = true, includeApps: Bool? = nil, markActive: Bool = false) {
+    func doRestore(_ name: String, notify: Bool = true, includeApps: Bool? = nil, markActive: Bool = false, iconsOnly: Bool = false) {
         let incApps = includeApps ?? config.get("restore_apps", true)
         let incWallpaper = config.get("restore_wallpaper", true)
         let hideOthers = config.get("hide_other_apps", false)
@@ -475,7 +492,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         DispatchQueue.global().async {
             let r = Profiles.restore(name, includeWallpaper: incWallpaper, includeApps: incApps,
-                                     hideOthers: hideOthers, quitOthers: quitOthers, launchDelay: delay)
+                                     hideOthers: hideOthers, quitOthers: quitOthers, launchDelay: delay,
+                                     iconsOnly: iconsOnly)
             DispatchQueue.main.async {
                 if let error = r.error {
                     if notify { Notifier.show(L("Fehler", "Error"), error) }
@@ -582,6 +600,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         buildMenu()
     }
 
+    @objc func onToggleAutoRestoreIconsOnly() {
+        let newVal = !config.get("auto_restore_icons_only", false)
+        config.set("auto_restore_icons_only", newVal)
+        config.save()
+        buildMenu()
+    }
+
     @objc func onSetInterval(_ sender: NSMenuItem) {
         guard let mins = sender.representedObject as? Int else { return }
         config.set("auto_restore_interval_minutes", mins)
@@ -594,6 +619,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let name = sender.representedObject as? String else { return }
         config.set("auto_restore_profile", name)
         config.save()
+        // „Kein“ gewählt → laufenden Auto-Restore-Timer stoppen
+        if name.isEmpty { stopAutoRestore() }
+        else if config.get("auto_restore_enabled", false) { startAutoRestore() }
         buildMenu()
     }
 
@@ -925,7 +953,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self = self else { return }
             let profile = self.config.get("auto_restore_profile", "")
             if !profile.isEmpty {
-                self.doRestore(profile, notify: false, includeApps: false)
+                let iconsOnly = self.config.get("auto_restore_icons_only", false)
+                self.doRestore(profile, notify: false, includeApps: false, iconsOnly: iconsOnly)
             }
         }
     }
@@ -938,7 +967,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func restoreOnLogin() {
         let profile = config.get("auto_restore_profile", "")
         if !profile.isEmpty, Profiles.profilePath(profile).map({ FileManager.default.fileExists(atPath: $0.path) }) == true {
-            doRestore(profile, notify: false)
+            let iconsOnly = config.get("auto_restore_icons_only", false)
+            doRestore(profile, notify: false, iconsOnly: iconsOnly)
         }
     }
 }

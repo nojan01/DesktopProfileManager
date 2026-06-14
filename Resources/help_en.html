@@ -134,13 +134,23 @@ are not captured when saving new profiles.</p>
 (large emojis without text, name as tooltip).</p>
 
 <h3>⏱ Auto restore</h3>
-<p>Enables automatic, periodic restoration of the chosen auto-restore profile at the set interval.</p>
+<p>Main switch for the <strong>time-based, recurring</strong> restoration. When on, a timer repeatedly
+applies the chosen auto-restore profile at the set interval.</p>
+<p><strong>Note:</strong> This switch only controls the interval timer. Restoring <em>at login</em> and
+<em>after sleep</em> are independent and are controlled by the separate switches “🔁 Restore icons at
+login” and “😴 Restore after sleep” – these work even when auto restore is off.</p>
+
+<h3>🧩 Auto restore desktop icons only</h3>
+<p>Defines <strong>what</strong> the automatic restoration (interval timer, login, sleep) applies. Off
+(default): the full profile including wallpaper, apps and system state. On: only the desktop icon
+positions. Manual restoring via the quick menu is not affected.</p>
 
 <h3>⏰ Interval</h3>
 <p>Defines how often auto restore runs (5–240 minutes). The active value is marked with a checkmark.</p>
 
 <h3>📋 Auto-restore profile</h3>
-<p>Determines which profile is used for automatic restoring, at login, and after sleep.</p>
+<p>Determines which profile is used for automatic restoring, at login, and after sleep. Choose “(None)”
+to clear the selection – no automatic restoration will then take place.</p>
 
 <h3>✏️ Edit profile</h3>
 <p>Opens the edit window for the chosen profile. Important:</p>

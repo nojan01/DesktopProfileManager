@@ -215,7 +215,7 @@ enum Profiles {
 
     static func restore(_ name: String, includeWallpaper: Bool = true, includeApps: Bool = false,
                         hideOthers: Bool = false, quitOthers: Bool = false,
-                        launchDelay: Double = 1.5) -> RestoreResult {
+                        launchDelay: Double = 1.5, iconsOnly: Bool = false) -> RestoreResult {
         guard let data = load(name) else {
             return RestoreResult(success: 0, failed: 0,
                                  error: L("Profil '\(name)' nicht gefunden", "Profile '\(name)' not found"),
@@ -224,10 +224,13 @@ enum Profiles {
         let hiddenList = Set(data["hidden"] as? [String] ?? [])
         let settings = data["settings"] as? [String: Any] ?? [:]
         let restorePositions = settings["restore_positions"] as? Bool ?? true
-        var incWallpaper = includeWallpaper
-        var incApps = includeApps
-        if let w = settings["restore_wallpaper"] as? Bool { incWallpaper = w }
-        if let a = settings["restore_apps"] as? Bool { incApps = a }
+        // Im „Nur-Desktop-Symbole“-Modus werden Hintergrund, Apps und Systemzustand übersprungen.
+        var incWallpaper = iconsOnly ? false : includeWallpaper
+        var incApps = iconsOnly ? false : includeApps
+        if !iconsOnly {
+            if let w = settings["restore_wallpaper"] as? Bool { incWallpaper = w }
+            if let a = settings["restore_apps"] as? Bool { incApps = a }
+        }
 
         // Sichtbarkeit wiederherstellen
         for item in DesktopIcons.getAllItems() {
@@ -252,10 +255,12 @@ enum Profiles {
         if incApps && !profileApps.isEmpty {
             Apps.launch(profileApps, staggerDelay: launchDelay)
         }
-        if quitOthers { _ = Apps.quitOthers(keep: profileApps) }
-        else if hideOthers { _ = Apps.hideOthers(keep: profileApps) }
+        if !iconsOnly {
+            if quitOthers { _ = Apps.quitOthers(keep: profileApps) }
+            else if hideOthers { _ = Apps.hideOthers(keep: profileApps) }
 
-        if let state = data["system_state"] as? [String: Any] { SystemState.restore(state) }
+            if let state = data["system_state"] as? [String: Any] { SystemState.restore(state) }
+        }
 
         var warning: String? = nil
         if restorePositions, let saved = data["display_layout"] as? [[String: Int]], !saved.isEmpty {

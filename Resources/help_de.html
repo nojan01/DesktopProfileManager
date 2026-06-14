@@ -135,8 +135,18 @@ Abgehakte Apps werden beim Speichern neuer Profile nicht mit erfasst.</p>
 Ansicht (große Emojis ohne Text, Name als Tooltip) um.</p>
 
 <h3>⏱ Auto-Wiederherstellen</h3>
-<p>Aktiviert die automatische, regelmäßige Wiederherstellung des gewählten Auto-Restore-Profils im
-eingestellten Intervall.</p>
+<p>Hauptschalter für die <strong>zeitgesteuerte, wiederkehrende</strong> Wiederherstellung. Ist er an, läuft
+ein Timer, der das gewählte Auto-Restore-Profil immer wieder im eingestellten Intervall anwendet.</p>
+<p><strong>Wichtig:</strong> Dieser Schalter steuert nur den Intervall-Timer. Das Wiederherstellen
+<em>beim Login</em> und <em>nach dem Ruhemodus</em> ist davon unabhängig und wird über die separaten
+Schalter „🔁 Beim Login wiederherstellen" bzw. „😴 Nach Ruhemodus wiederherstellen" gesteuert – diese
+funktionieren auch, wenn Auto-Wiederherstellen aus ist.</p>
+
+<h3>🧩 Auto-Restore nur Desktop-Symbole</h3>
+<p>Legt fest, <strong>was</strong> die automatische Wiederherstellung (Intervall-Timer, Login, Ruhemodus)
+anwendet. Aus (Standard): das komplette Profil inkl. Hintergrund, Apps und Systemzustand. An: nur die
+Desktop-Symbol-Positionen. Das manuelle Wiederherstellen über die Schnellauswahl ist davon nicht
+betroffen.</p>
 
 <h3>⏰ Intervall</h3>
 <p>Legt fest, wie oft das Auto-Wiederherstellen läuft (5–240 Minuten). Der aktive Wert ist mit einem
@@ -144,7 +154,8 @@ Häkchen markiert.</p>
 
 <h3>📋 Auto-Restore-Profil</h3>
 <p>Bestimmt, welches Profil beim automatischen Wiederherstellen, beim Login und nach dem Ruhemodus
-verwendet wird.</p>
+verwendet wird. Mit „(Kein)" lässt sich die Auswahl zurücknehmen – dann findet keine automatische
+Wiederherstellung mehr statt.</p>
 
 <h3>✏️ Profil bearbeiten</h3>
 <p>Öffnet das Bearbeiten-Fenster für das gewählte Profil. Wichtig:</p>

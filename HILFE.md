@@ -24,6 +24,7 @@ der macOS-Menüleiste oben rechts. Ein Klick darauf öffnet das Menü.
    - [Profil-Widget anzeigen](#profil-widget-anzeigen)
    - [Widget kompakt (nur Emojis)](#widget-kompakt-nur-emojis)
    - [Auto-Wiederherstellen](#auto-wiederherstellen)
+   - [Auto-Restore nur Desktop-Symbole](#auto-restore-nur-desktop-symbole)
    - [Intervall](#intervall)
    - [Auto-Restore-Profil](#auto-restore-profil)
    - [Profil bearbeiten](#profil-bearbeiten)
@@ -156,10 +157,37 @@ Darstellungen um:
 
 ### Auto-Wiederherstellen
 
-**⏱ Auto-Wiederherstellen** (Schalter) aktiviert die automatische, regelmäßige
-Wiederherstellung. Ist er an, wird das unter *Auto-Restore-Profil* gewählte Profil
-in dem unter *Intervall* eingestellten Takt automatisch angewandt. Nützlich, um eine
-„Soll-Ordnung" des Desktops dauerhaft zu erzwingen.
+**⏱ Auto-Wiederherstellen** (Schalter) ist der **Hauptschalter für die
+zeitgesteuerte, wiederkehrende** Wiederherstellung. Ist er an, läuft im Hintergrund
+ein **Timer**, der das unter *Auto-Restore-Profil* gewählte Profil immer wieder in
+dem unter *Intervall* eingestellten Takt anwendet – solange die App läuft. Nützlich,
+um eine „Soll-Ordnung" des Desktops dauerhaft zu erzwingen.
+
+> **Wichtig – das steuert nur den Intervall-Timer.** Das Wiederherstellen *beim
+> Login* und *nach dem Ruhemodus* sind davon unabhängig und werden über die
+> separaten Schalter *🔁 Beim Login wiederherstellen* bzw. *😴 Nach Ruhemodus
+> wiederherstellen* gesteuert. Diese funktionieren auch dann, wenn
+> *Auto-Wiederherstellen* ausgeschaltet ist.
+
+Kurz gesagt, die Einträge greifen so ineinander:
+
+- **⏱ Auto-Wiederherstellen** → *ob* der Intervall-Timer läuft
+- **⏰ Intervall** → *wie oft* (z. B. alle 30 Min.)
+- **📋 Auto-Restore-Profil** → *welches* Profil
+- **🧩 Auto-Restore nur Desktop-Symbole** → *was* wiederhergestellt wird
+
+### Auto-Restore nur Desktop-Symbole
+
+**🧩 Auto-Restore nur Desktop-Symbole** (Schalter) legt fest, **was** die
+*automatische* Wiederherstellung (Intervall-Timer, Login und Ruhemodus) anwendet:
+
+- **Aus** (Standard): Es wird das komplette Profil angewandt – Icon-Positionen,
+  Hintergrund, Apps und Systemzustand.
+- **An**: Es werden **nur die Desktop-Symbol-Positionen** wiederhergestellt –
+  Hintergrund, Apps und Systemzustand bleiben unangetastet.
+
+Das **manuelle** Wiederherstellen über die Schnellauswahl ist davon nicht betroffen
+und stellt weiterhin alles wieder her.
 
 ### Intervall
 
@@ -171,8 +199,10 @@ Häkchen markiert.
 
 Untermenü **📋 Auto-Restore-Profil**: bestimmt, **welches** Profil beim automatischen
 Wiederherstellen (sowie beim Login und nach dem Ruhemodus) verwendet wird. Es wird
-genau ein Profil ausgewählt (Häkchen). Ohne gespeicherte Profile steht hier ein
-Hinweis.
+genau ein Profil ausgewählt (Häkchen). Mit **(Kein)** lässt sich die Auswahl
+zurücknehmen – dann findet **keine** automatische Wiederherstellung mehr statt (weder
+per Intervall noch beim Login oder nach dem Ruhemodus). Ohne gespeicherte Profile
+steht hier ein Hinweis.
 
 ### Profil bearbeiten
 
