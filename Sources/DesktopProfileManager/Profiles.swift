@@ -301,8 +301,14 @@ enum Profiles {
         if incApps && !profileApps.isEmpty {
             Apps.launch(profileApps, staggerDelay: launchDelay)
         }
+        var warnings: [String] = []
         if incBrowserTabs {
-            BrowserTabs.restore(BrowserTabs.parse(data["browser_tabs"]))
+            let browserResult = BrowserTabs.restore(BrowserTabs.parse(data["browser_tabs"]))
+            if !browserResult.failedBrowsers.isEmpty {
+                let browsers = browserResult.failedBrowsers.joined(separator: ", ")
+                warnings.append(L("Browser-Tabs konnten nicht geöffnet werden (\(browsers)). Prüfe die Automatisierungsfreigabe.",
+                                  "Browser tabs could not be opened (\(browsers)). Check the Automation permission."))
+            }
         }
         if !iconsOnly {
             if quitOthers { _ = Apps.quitOthers(keep: profileApps) }
@@ -311,13 +317,13 @@ enum Profiles {
             if let state = data["system_state"] as? [String: Any] { SystemState.restore(state) }
         }
 
-        var warning: String? = nil
         if restorePositions, let saved = data["display_layout"] as? [[String: Int]], !saved.isEmpty {
             if !Displays.layoutsMatch(saved, Displays.getLayout()) {
-                warning = L("Bildschirm-Anordnung weicht ab – Symbolpositionen passen evtl. nicht.",
-                            "Display arrangement differs – icon positions may not match.")
+                warnings.append(L("Bildschirm-Anordnung weicht ab – Symbolpositionen passen evtl. nicht.",
+                                  "Display arrangement differs – icon positions may not match."))
             }
         }
+        let warning = warnings.isEmpty ? nil : warnings.joined(separator: "\n")
         return RestoreResult(success: success, failed: failed, error: nil, warning: warning)
     }
 

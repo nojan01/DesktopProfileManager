@@ -37,4 +37,11 @@ final class DesktopProfileManagerTests: XCTestCase {
         ])
         XCTAssertEqual(parsed, ["com.apple.Safari": ["https://example.com"]])
     }
+
+    func testBrowserTabsCreateTabsInsideTheCurrentWindow() {
+        let commands = BrowserTabs.tabCreationCommands(["https://example.com"])
+        XCTAssertEqual(commands,
+                       "    make new tab at end of tabs with properties {URL:\"https://example.com\"}")
+        XCTAssertFalse(commands.contains("tabs of front window"))
+    }
 }

@@ -5,6 +5,11 @@ import Foundation
 /// Firefox stellt keine verlässliche öffentliche Schnittstelle zum Auslesen
 /// vorhandener Tabs bereit und wird deshalb bewusst nicht erfasst.
 enum BrowserTabs {
+    struct RestoreOutcome {
+        let openedTabs: Int
+        let failedBrowsers: [String]
+    }
+
     private struct Browser {
         let name: String
         let bundleID: String
@@ -43,16 +48,17 @@ enum BrowserTabs {
 
     /// Öffnet die gespeicherten URLs als neue Tabs. Die Browser werden dabei bei
     /// Bedarf gestartet; vorhandene Fenster und Tabs bleiben unverändert.
-    static func restore(_ savedTabs: [String: [String]]) {
+    @discardableResult
+    static func restore(_ savedTabs: [String: [String]]) -> RestoreOutcome {
+        var openedTabs = 0
+        var failedBrowsers: [String] = []
         for browser in supportedBrowsers {
             guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: browser.bundleID) != nil,
                   let urls = savedTabs[browser.bundleID] else { continue }
             let valid = validURLs(urls)
             guard !valid.isEmpty else { continue }
 
-            let commands = valid.map {
-                "    make new tab at end of tabs of front window with properties {URL:\"\(Shell.esc($0))\"}"
-            }.joined(separator: "\n")
+            let commands = tabCreationCommands(valid)
             let script = """
             tell application "\(browser.name)"
                 activate
@@ -62,8 +68,13 @@ enum BrowserTabs {
                 end tell
             end tell
             """
-            _ = Shell.runAppleScript(script)
+            if Shell.runAppleScript(script) != nil {
+                openedTabs += valid.count
+            } else {
+                failedBrowsers.append(browser.name)
+            }
         }
+        return RestoreOutcome(openedTabs: openedTabs, failedBrowsers: failedBrowsers)
     }
 
     static func parse(_ raw: Any?) -> [String: [String]] {
@@ -85,5 +96,14 @@ enum BrowserTabs {
                   url.host != nil else { return false }
             return seen.insert(candidate).inserted
         }
+    }
+
+    /// Der Befehl läuft bereits im Kontext von `tell front window`. Eine zweite
+    /// Referenz auf `front window` würde Safari als Fenster-eines-Fensters
+    /// interpretieren und das Öffnen der Tabs fehlschlagen lassen.
+    static func tabCreationCommands(_ urls: [String]) -> String {
+        urls.map {
+            "    make new tab at end of tabs with properties {URL:\"\(Shell.esc($0))\"}"
+        }.joined(separator: "\n")
     }
 }
