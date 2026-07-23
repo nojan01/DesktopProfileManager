@@ -1,4 +1,5 @@
 import AppKit
+import Foundation
 
 /// Menüleisten-App: NSStatusItem mit Profil-Schnellauswahl und Einstellungen.
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -797,41 +798,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func onCheckUpdate() {
-        DispatchQueue.global().async {
-            let api = "https://api.github.com/repos/\(self.githubRepo)/releases/latest"
-            let (out, code) = Shell.run("/usr/bin/curl",
-                ["-sSL", "--max-time", "15",
-                 "-H", "Accept: application/vnd.github+json",
-                 "-H", "User-Agent: DesktopProfileManager", api], timeout: 20)
-            var latest = ""
-            if code == 0, let data = out.data(using: .utf8),
-               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                latest = (obj["tag_name"] as? String ?? "")
-                    .trimmingCharacters(in: .whitespaces)
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
-            }
-            DispatchQueue.main.async { self.showUpdateResult(latest) }
+        UpdateManager.fetchLatest(repo: githubRepo) { result in
+            DispatchQueue.main.async { self.showUpdateResult(result) }
         }
     }
 
-    private func showUpdateResult(_ latest: String) {
+    private func showUpdateResult(_ result: Result<UpdateManager.Release, Error>) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        if latest.isEmpty {
+        guard case .success(let release) = result else {
             alert.messageText = L("Update-Prüfung fehlgeschlagen", "Update check failed")
             alert.informativeText = L("Die Update-Informationen konnten nicht abgerufen werden.",
                                       "Could not fetch update information.")
             alert.runModal()
-        } else if versionGreater(latest, than: Paths.appVersion) {
+            NSApp.setActivationPolicy(.accessory)
+            return
+        }
+
+        if versionGreater(release.version, than: Paths.appVersion) {
+            let canDownload = release.downloadURL != nil && release.assetName != nil
             alert.messageText = L("Update verfügbar", "Update available")
-            alert.informativeText = L("Version v\(latest) ist verfügbar (installiert: v\(Paths.appVersion)).",
-                                      "Version v\(latest) is available (installed: v\(Paths.appVersion)).")
-            alert.addButton(withTitle: L("Releases öffnen", "Open releases"))
+            alert.informativeText = canDownload
+                ? L("Version v\(release.version) ist verfügbar (installiert: v\(Paths.appVersion)). Das DMG wird nach der Bestätigung in „Downloads“ gespeichert.",
+                    "Version v\(release.version) is available (installed: v\(Paths.appVersion)). The DMG will be saved to Downloads after confirmation.")
+                : L("Version v\(release.version) ist verfügbar (installiert: v\(Paths.appVersion)). Für dieses Release wurde keine DMG-Datei gefunden.",
+                    "Version v\(release.version) is available (installed: v\(Paths.appVersion)). No DMG file was found for this release.")
+            alert.addButton(withTitle: L(canDownload ? "DMG herunterladen" : "Releases öffnen",
+                                         canDownload ? "Download DMG" : "Open releases"))
             alert.addButton(withTitle: L("Abbrechen", "Cancel"))
-            if alert.runModal() == .alertFirstButtonReturn,
-               let url = URL(string: "https://github.com/\(githubRepo)/releases") {
-                NSWorkspace.shared.open(url)
+            if alert.runModal() == .alertFirstButtonReturn {
+                if canDownload {
+                    startUpdateDownload(release)
+                } else if let url = URL(string: "https://github.com/\(githubRepo)/releases") {
+                    NSWorkspace.shared.open(url)
+                }
             }
         } else {
             alert.messageText = L("Keine Updates", "No updates")
@@ -840,6 +841,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             alert.runModal()
         }
         NSApp.setActivationPolicy(.accessory)
+    }
+
+    private func startUpdateDownload(_ release: UpdateManager.Release) {
+        Notifier.show(L("Update-Download gestartet", "Update download started"),
+                      L("Das DMG wird in „Downloads“ gespeichert.", "The DMG is being saved to Downloads."))
+        UpdateManager.downloadDMG(release) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let file):
+                    Notifier.show(L("Update heruntergeladen", "Update downloaded"),
+                                  L("Die DMG-Datei wurde in „Downloads“ gespeichert.",
+                                    "The DMG file was saved to Downloads."))
+                    NSWorkspace.shared.activateFileViewerSelecting([file])
+                case .failure:
+                    Notifier.show(L("Update-Download fehlgeschlagen", "Update download failed"),
+                                  L("Das DMG konnte nicht heruntergeladen werden. Bitte versuche es später erneut.",
+                                    "The DMG could not be downloaded. Please try again later."))
+                }
+            }
+        }
     }
 
     private func versionGreater(_ a: String, than b: String) -> Bool {

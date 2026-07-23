@@ -44,4 +44,32 @@ final class DesktopProfileManagerTests: XCTestCase {
                        "    make new tab at end of tabs with properties {URL:\"https://example.com\"}")
         XCTAssertFalse(commands.contains("tabs of front window"))
     }
+
+    func testUpdateReleaseUsesDMGAssetAndIgnoresOtherAssets() throws {
+        let data = try XCTUnwrap("""
+        {
+          "tag_name": "v1.4.0",
+          "assets": [
+            {"name": "checksums.txt", "browser_download_url": "https://example.com/checksums.txt"},
+            {"name": "DesktopProfileManager-1.4.0.dmg", "browser_download_url": "https://example.com/app.dmg"}
+          ]
+        }
+        """.data(using: .utf8))
+
+        let release = try XCTUnwrap(UpdateManager.release(from: data))
+        XCTAssertEqual(release.version, "1.4.0")
+        XCTAssertEqual(release.assetName, "DesktopProfileManager-1.4.0.dmg")
+        XCTAssertEqual(release.downloadURL, URL(string: "https://example.com/app.dmg"))
+    }
+
+    func testUpdateReleaseWithoutDMGCanStillReportVersion() throws {
+        let data = try XCTUnwrap("""
+        {"tag_name": "v1.4.0", "assets": []}
+        """.data(using: .utf8))
+
+        let release = try XCTUnwrap(UpdateManager.release(from: data))
+        XCTAssertEqual(release.version, "1.4.0")
+        XCTAssertNil(release.downloadURL)
+        XCTAssertNil(release.assetName)
+    }
 }
