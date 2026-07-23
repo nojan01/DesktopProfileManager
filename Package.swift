@@ -10,6 +10,11 @@ let package = Package(
         .executableTarget(
             name: "DesktopProfileManager",
             path: "Sources/DesktopProfileManager"
+        ),
+        .testTarget(
+            name: "DesktopProfileManagerTests",
+            dependencies: ["DesktopProfileManager"],
+            path: "Tests/DesktopProfileManagerTests"
         )
     ]
 )

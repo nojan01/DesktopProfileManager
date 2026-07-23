@@ -3,7 +3,7 @@
 Desktop Profile Manager ist eine **Menüleisten-App** für macOS, mit der du komplette
 Arbeitsumgebungen als **Profile** speicherst und mit einem Klick wiederherstellst:
 Desktop-Icon-Positionen, versteckte Icons, Hintergrundbild, gestartete Apps inkl.
-Fensterposition sowie diverse Systemeinstellungen.
+Fensterposition, Browser-Tabs sowie diverse Systemeinstellungen.
 
 Die App hat **kein Dock-Symbol**. Du bedienst sie ausschließlich über das Symbol in
 der macOS-Menüleiste oben rechts. Ein Klick darauf öffnet das Menü.
@@ -65,6 +65,9 @@ Für die volle Funktion benötigt die App eine Berechtigung:
 - **Bedienungshilfen** (Systemeinstellungen › Datenschutz & Sicherheit ›
   Bedienungshilfen): Wird benötigt, um Fensterpositionen/-größen von Apps zu lesen
   und wiederherzustellen sowie Apps ein-/auszublenden.
+- **Automatisierung**: Für Browser-Tabs fragt macOS bei Bedarf nach der Freigabe für
+  Safari, Google Chrome oder Microsoft Edge. Sie wird benötigt, um Tabs zu lesen und
+  wieder zu öffnen.
 
 Beim ersten Start, der diese Funktionen nutzt, fragt macOS automatisch nach der
 Erlaubnis. Ohne diese Berechtigung funktionieren Icon-Positionen, Hintergrundbild
@@ -109,7 +112,8 @@ Untermenü **💾 Profil speichern …**:
 
 - **Neues Profil …** – Öffnet das Profil-Erstellungs-Fenster (siehe
   [unten](#das-profil-erstellungs-fenster-im-detail)). Hier legst du Name, Emoji,
-  Inhalte, optional die WLAN-Zuordnung und die zu speichernden Apps fest.
+  Inhalte, optional die WLAN-Zuordnung, Apps und Browser-Tabs fest. Profilnamen
+  dürfen Buchstaben, Zahlen, Leerzeichen, Bindestriche und Unterstriche enthalten.
 - **Überschreiben: \<Profil\>** – Speichert den **aktuellen** Desktop-Zustand in ein
   bereits vorhandenes Profil und übernimmt dabei dessen bisherige Einstellungen
   (welche Inhalte erfasst werden, Emoji, App-Auswahl usw.). Praktisch, um ein Profil
@@ -212,8 +216,9 @@ Profil. Wichtig:
 - Die **gespeicherten Icon-Positionen, versteckten Icons und das Hintergrundbild
   bleiben unverändert erhalten** – der Desktop wird *nicht* neu erfasst.
 - Geändert werden nur **Metadaten**: Name, Emoji, WLAN-Zuordnung, App-Auswahl,
-  erfasste Systemzustände und die Inhalts-Optionen.
-- Du kannst ein Profil hier auch **umbenennen**.
+  erfasste Systemzustände, Browser-Tabs und die Inhalts-Optionen.
+- Du kannst ein Profil hier auch **umbenennen**; Zeit- und WLAN-Regeln werden dabei
+  aktualisiert.
 
 ### Profil löschen
 
@@ -262,7 +267,8 @@ werden.
 ### Beim Anmelden starten
 
 **🔓 Beim Anmelden starten** (Schalter) richtet einen **LaunchAgent** ein, sodass die
-App automatisch startet, sobald du dich an deinem Mac anmeldest.
+App automatisch startet, sobald du dich an deinem Mac anmeldest. Der Schalter ist nur
+aktiv, wenn macOS den Dienst geladen hat; bei Fehlern zeigt die App eine Meldung an.
 
 ### Kurzbefehle 1–9
 
@@ -348,6 +354,11 @@ Fenster mit folgenden Feldern:
   - **Versteckte Icons**
   - **Hintergrundbild**
   - **Apps**
+  - **Browser-Tabs (Safari, Chrome, Edge)** – Speichert alle geöffneten HTTP(S)-Tabs
+    der aktuell laufenden unterstützten Browser. Beim Wiederherstellen werden sie als
+    neue Tabs geöffnet; vorhandene Tabs bleiben erhalten. Firefox-Tabs können ohne
+    Browser-Erweiterung nicht zuverlässig ausgelesen werden. URLs werden im Profil
+    gespeichert und können Suchbegriffe, interne Adressen oder Parameter enthalten.
 - **Systemzustand** – optionale Schalter wie Dark Mode, Lautstärke, Helligkeit,
   „Nicht stören", Dock und Desktop-Ansicht.
 - **App-Liste** – Auswahl, welche der laufenden Apps zum Profil gehören sollen
@@ -387,6 +398,11 @@ aktiviert ist.
 **Fensterpositionen werden nicht wiederhergestellt.**
 Erteile der App die Berechtigung unter *Systemeinstellungen › Datenschutz &
 Sicherheit › Bedienungshilfen*.
+
+**Meine Browser-Tabs werden nicht gespeichert oder geöffnet.**
+Aktiviere im Profil *Browser-Tabs (Safari, Chrome, Edge)*, lasse den Browser beim
+Speichern geöffnet und aktiviere *Apps beim Wiederherstellen starten*. Erteile die
+angefragte Automatisierungsberechtigung. Firefox-Tabs werden nicht automatisch erfasst.
 
 **Das Widget ist nach einem Neustart wieder ausgeblendet.**
 Das sollte nicht passieren – die Sichtbarkeit wird dauerhaft gespeichert. Schalte das

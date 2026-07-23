@@ -17,10 +17,28 @@ enum Profiles {
         let url: URL
     }
 
+    /// Valider Profilname. Namen werden nicht stillschweigend verändert, damit
+    /// unterschiedliche Eingaben nie in derselben Datei landen können.
+    static func validatedName(_ name: String) -> String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              trimmed.allSatisfy({ $0.isLetter || $0.isNumber || "-_ ".contains($0) }) else {
+            return nil
+        }
+        return trimmed
+    }
+
+    /// Bereinigt einen Namen aus einer importierten Datei zu einem gültigen
+    /// lokalen Profilnamen. Die interaktive UI verwendet dagegen `validatedName`.
+    static func importName(_ name: String) -> String? {
+        let cleaned = name.filter { $0.isLetter || $0.isNumber || "-_ ".contains($0) }
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return validatedName(cleaned)
+    }
+
     static func profilePath(_ name: String) -> URL? {
-        let safe = name.filter { $0.isLetter || $0.isNumber || "-_ ".contains($0) }
-        if safe.isEmpty { return nil }
-        return Paths.profilesDir.appendingPathComponent("\(safe).json")
+        guard let validName = validatedName(name) else { return nil }
+        return Paths.profilesDir.appendingPathComponent("\(validName).json")
     }
 
     static func list() -> [Summary] {
@@ -36,8 +54,13 @@ enum Profiles {
             let settings = obj["settings"] as? [String: Any] ?? [:]
             let hidden = obj["hidden"] as? [Any] ?? []
             let apps = obj["apps"] as? [Any] ?? []
+            // Für ältere Dateien mit einem inzwischen ungültigen `profile`-
+            // Feld den Dateinamen verwenden, damit das Profil weiter ladbar ist.
+            let fileStem = String(name.dropLast(5))
+            let storedName = obj["profile"] as? String ?? fileStem
+            let displayName = validatedName(storedName) ?? fileStem
             result.append(Summary(
-                name: obj["profile"] as? String ?? String(name.dropLast(5)),
+                name: displayName,
                 count: obj["icon_count"] as? Int ?? 0,
                 hiddenCount: hidden.count,
                 appCount: apps.count,
@@ -56,11 +79,10 @@ enum Profiles {
         return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     }
 
-    private static func atomicWrite(_ obj: [String: Any], to url: URL) {
-        try? FileManager.default.createDirectory(at: Paths.profilesDir, withIntermediateDirectories: true)
-        if let data = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted]) {
-            try? data.write(to: url, options: .atomic)
-        }
+    private static func atomicWrite(_ obj: [String: Any], to url: URL) throws {
+        try FileManager.default.createDirectory(at: Paths.profilesDir, withIntermediateDirectories: true)
+        let data = try JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted])
+        try data.write(to: url, options: .atomic)
     }
 
     private static func nowISO() -> String {
@@ -74,6 +96,7 @@ enum Profiles {
         var withHidden = true
         var withWallpaper = true
         var withApps = true
+        var withBrowserTabs = false
         var includedApps: [String]? = nil
         var systemStateKeys: [String] = []
         var emoji = ""
@@ -82,10 +105,12 @@ enum Profiles {
 
     /// Speichert ein Profil mit den gewählten Inhalten. Gibt (count, path) zurück.
     @discardableResult
-    static func save(_ name: String, appExclusions: [String], options: SaveOptions) -> (count: Int, url: URL?, error: String?) {
+    static func save(_ name: String, appExclusions: [String], options: SaveOptions,
+                     overwrite: Bool = false) -> (count: Int, url: URL?, error: String?) {
         let positions = options.withPositions ? DesktopIcons.getPositions() : [:]
         let hidden = options.withHidden ? DesktopIcons.getHiddenItems() : []
         let wallpaper = options.withWallpaper ? Wallpaper.get() : []
+        let browserTabs = options.withBrowserTabs ? BrowserTabs.capture() : [:]
         let displayLayout = Displays.getLayout().map { ["x": $0.x, "y": $0.y, "w": $0.w, "h": $0.h] }
         let systemState = SystemState.capture(keys: options.systemStateKeys)
 
@@ -101,11 +126,16 @@ enum Profiles {
             apps = Apps.capture(exclusions: exclusions)
         }
 
-        if positions.isEmpty && hidden.isEmpty && wallpaper.isEmpty && apps.isEmpty && systemState.isEmpty {
+        if positions.isEmpty && hidden.isEmpty && wallpaper.isEmpty && apps.isEmpty &&
+            browserTabs.isEmpty && systemState.isEmpty {
             return (0, nil, L("Keine Daten zum Speichern gefunden", "No data found to save"))
         }
         guard let url = profilePath(name) else {
-            return (0, nil, L("Ungültiger Profilname.", "Invalid profile name."))
+            return (0, nil, L("Ungültiger Profilname. Erlaubt sind Buchstaben, Zahlen, Leerzeichen, - und _.",
+                              "Invalid profile name. Only letters, numbers, spaces, - and _ are allowed."))
+        }
+        if !overwrite && FileManager.default.fileExists(atPath: url.path) {
+            return (0, nil, L("Ein Profil '\(name)' existiert bereits.", "A profile '\(name)' already exists."))
         }
 
         var positionsObj: [String: [String: Int]] = [:]
@@ -125,6 +155,7 @@ enum Profiles {
             "hidden": hidden,
             "wallpaper": wallpaper,
             "apps": appsObj,
+            "browser_tabs": browserTabs,
             "system_state": systemState,
             "display_layout": displayLayout,
             "settings": [
@@ -132,17 +163,23 @@ enum Profiles {
                 "capture_hidden": options.withHidden,
                 "capture_wallpaper": options.withWallpaper,
                 "capture_apps": options.withApps,
+                "capture_browser_tabs": options.withBrowserTabs,
                 "restore_positions": options.withPositions,
                 "restore_wallpaper": options.withWallpaper,
                 "restore_apps": options.withApps,
+                "restore_browser_tabs": options.withBrowserTabs,
                 "included_apps": options.includedApps ?? NSNull(),
                 "system_state_keys": options.systemStateKeys,
                 "emoji": options.emoji,
                 "wifi_ssid": options.wifiSSID,
             ]
         ]
-        atomicWrite(data, to: url)
-        return (positions.count + hidden.count, url, nil)
+        do {
+            try atomicWrite(data, to: url)
+            return (positions.count + hidden.count, url, nil)
+        } catch {
+            return (0, nil, error.localizedDescription)
+        }
     }
 
     /// Übernimmt Änderungen an einem bestehenden Profil, OHNE den Desktop neu zu
@@ -186,15 +223,18 @@ enum Profiles {
 
         // Systemzustand neu erfassen, falls Optionen gewählt
         data["system_state"] = SystemState.capture(keys: options.systemStateKeys)
+        data["browser_tabs"] = options.withBrowserTabs ? BrowserTabs.capture() : [:]
 
         data["settings"] = [
             "capture_positions": options.withPositions,
             "capture_hidden": options.withHidden,
             "capture_wallpaper": options.withWallpaper,
             "capture_apps": options.withApps,
+            "capture_browser_tabs": options.withBrowserTabs,
             "restore_positions": options.withPositions,
             "restore_wallpaper": options.withWallpaper,
             "restore_apps": options.withApps,
+            "restore_browser_tabs": options.withBrowserTabs,
             "included_apps": uniqueDesired,
             "system_state_keys": options.systemStateKeys,
             "emoji": options.emoji,
@@ -203,9 +243,13 @@ enum Profiles {
         data["profile"] = newName
         data["saved_at"] = nowISO()
 
-        atomicWrite(data, to: newURL)
-        if renamed {
-            try? FileManager.default.removeItem(at: oldURL)
+        do {
+            try atomicWrite(data, to: newURL)
+            if renamed {
+                try FileManager.default.removeItem(at: oldURL)
+            }
+        } catch {
+            return error.localizedDescription
         }
         return nil
     }
@@ -227,9 +271,11 @@ enum Profiles {
         // Im „Nur-Desktop-Symbole“-Modus werden Hintergrund, Apps und Systemzustand übersprungen.
         var incWallpaper = iconsOnly ? false : includeWallpaper
         var incApps = iconsOnly ? false : includeApps
+        var incBrowserTabs = iconsOnly ? false : includeApps
         if !iconsOnly {
             if let w = settings["restore_wallpaper"] as? Bool { incWallpaper = w }
             if let a = settings["restore_apps"] as? Bool { incApps = a }
+            if let b = settings["restore_browser_tabs"] as? Bool { incBrowserTabs = b && includeApps }
         }
 
         // Sichtbarkeit wiederherstellen
@@ -254,6 +300,9 @@ enum Profiles {
         let profileApps = parseApps(data["apps"])
         if incApps && !profileApps.isEmpty {
             Apps.launch(profileApps, staggerDelay: launchDelay)
+        }
+        if incBrowserTabs {
+            BrowserTabs.restore(BrowserTabs.parse(data["browser_tabs"]))
         }
         if !iconsOnly {
             if quitOthers { _ = Apps.quitOthers(keep: profileApps) }

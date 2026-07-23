@@ -127,6 +127,7 @@ final class ProfileSetupWindow: NSObject, NSWindowDelegate {
             ("capture_hidden", L("Versteckte Icons", "Hidden icons")),
             ("capture_wallpaper", L("Hintergrundbild", "Wallpaper")),
             ("capture_apps", L("Apps", "Apps")),
+            ("capture_browser_tabs", L("Browser-Tabs (Safari, Chrome, Edge)", "Browser tabs (Safari, Chrome, Edge)")),
         ]
         for (key, text) in optionDefs {
             let on = isEdit ? (savedSettings[key] as? Bool ?? true) : true
@@ -232,6 +233,7 @@ final class ProfileSetupWindow: NSObject, NSWindowDelegate {
             case "capture_hidden": options.withHidden = on
             case "capture_wallpaper": options.withWallpaper = on
             case "capture_apps": options.withApps = on
+            case "capture_browser_tabs": options.withBrowserTabs = on
             default: break
             }
         }

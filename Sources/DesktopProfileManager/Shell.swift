@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 /// Hilfsfunktionen zum Ausführen externer Prozesse und AppleScript.
 enum Shell {
@@ -9,29 +10,52 @@ enum Shell {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: launchPath)
         process.arguments = args
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
         do {
             try process.run()
         } catch {
             return ("", -1)
         }
-        // Einfaches Timeout über einen Watchdog-Thread
+
+        // Pipes sofort leeren: Andernfalls blockiert ein Kindprozess bei großer
+        // Ausgabe am Pipe-Puffer, bevor `waitUntilExit()` zurückkehren kann.
+        let ioGroup = DispatchGroup()
+        var outputData = Data()
+        ioGroup.enter()
+        DispatchQueue.global().async {
+            outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            ioGroup.leave()
+        }
+        ioGroup.enter()
+        DispatchQueue.global().async {
+            _ = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            ioGroup.leave()
+        }
+
+        // Timeout über einen Watchdog-Thread
         let deadline = DispatchTime.now() + timeout
-        let group = DispatchGroup()
-        group.enter()
+        let terminationGroup = DispatchGroup()
+        terminationGroup.enter()
         DispatchQueue.global().async {
             process.waitUntilExit()
-            group.leave()
+            terminationGroup.leave()
         }
-        if group.wait(timeout: deadline) == .timedOut {
+        let timedOut = terminationGroup.wait(timeout: deadline) == .timedOut
+        if timedOut {
             process.terminate()
-            return ("", -1)
+            // `terminate()` kann ignoriert werden; dann Prozess hart beenden,
+            // damit die Pipe-Leser nicht unbegrenzt auf ihr EOF warten.
+            if terminationGroup.wait(timeout: .now() + 2) == .timedOut {
+                Darwin.kill(process.processIdentifier, SIGKILL)
+                terminationGroup.wait()
+            }
         }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let out = String(data: data, encoding: .utf8) ?? ""
-        return (out.trimmingCharacters(in: .whitespacesAndNewlines), process.terminationStatus)
+        ioGroup.wait()
+        let out = String(data: outputData, encoding: .utf8) ?? ""
+        return (out.trimmingCharacters(in: .whitespacesAndNewlines), timedOut ? -1 : process.terminationStatus)
     }
 
     /// Führt ein AppleScript via `osascript` aus. Gibt nil bei Fehler zurück.

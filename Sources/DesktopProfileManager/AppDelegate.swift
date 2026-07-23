@@ -523,18 +523,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             options.withHidden = saved["capture_hidden"] as? Bool ?? true
             options.withWallpaper = saved["capture_wallpaper"] as? Bool ?? true
             options.withApps = saved["capture_apps"] as? Bool ?? true
+            options.withBrowserTabs = saved["capture_browser_tabs"] as? Bool ?? false
             options.includedApps = saved["included_apps"] as? [String]
             options.systemStateKeys = saved["system_state_keys"] as? [String] ?? []
             options.emoji = saved["emoji"] as? String ?? ""
             options.wifiSSID = saved["wifi_ssid"] as? String ?? ""
         }
-        doSaveWithOptions(name, options: options)
+        doSaveWithOptions(name, options: options, overwrite: true)
     }
 
-    func doSaveWithOptions(_ name: String, options: Profiles.SaveOptions) {
+    func doSaveWithOptions(_ name: String, options: Profiles.SaveOptions, overwrite: Bool = false) {
         let exclusions = config.get("app_exclusions", [String]())
         DispatchQueue.global().async {
-            let r = Profiles.save(name, appExclusions: exclusions, options: options)
+            let r = Profiles.save(name, appExclusions: exclusions, options: options, overwrite: overwrite)
             DispatchQueue.main.async {
                 if let error = r.error {
                     Notifier.show(L("Fehler", "Error"), error)
@@ -556,9 +557,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if let error = error {
                     Notifier.show(L("Fehler", "Error"), error)
                 } else {
-                    // Verweise in der Konfiguration mitziehen
-                    if oldName != newName, self.config.get("auto_restore_profile", "") == oldName {
-                        self.config.set("auto_restore_profile", newName)
+                    // Verweise in der Konfiguration mitziehen.
+                    if oldName != newName {
+                        if self.config.get("auto_restore_profile", "") == oldName {
+                            self.config.set("auto_restore_profile", newName)
+                        }
+                        var rules = self.config.get("auto_switch_rules", [[String: Any]]())
+                        for index in rules.indices where rules[index]["profile"] as? String == oldName {
+                            rules[index]["profile"] = newName
+                        }
+                        self.config.set("auto_switch_rules", rules)
                         self.config.save()
                     }
                     if self.activeProfile == oldName { self.activeProfile = newName }
@@ -634,8 +642,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func onToggleAutostart() {
-        if LaunchAgentManager.isEnabled() { LaunchAgentManager.disable() }
-        else { LaunchAgentManager.enable() }
+        let error: String?
+        if LaunchAgentManager.isEnabled() {
+            error = LaunchAgentManager.disable()
+        } else {
+            error = LaunchAgentManager.enable()
+        }
+        if let error = error {
+            Notifier.show(L("Autostart konnte nicht geändert werden", "Could not change start at login"), error)
+        }
         buildMenu()
     }
 
@@ -757,7 +772,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Namen bei Konflikt durchnummerieren
-        let base = (obj["profile"] as? String) ?? src.deletingPathExtension().lastPathComponent
+        let rawBase = (obj["profile"] as? String) ?? src.deletingPathExtension().lastPathComponent
+        guard let base = Profiles.importName(rawBase) else {
+            Notifier.show(L("Fehler", "Error"),
+                          L("Die Datei enthält keinen gültigen Profilnamen.",
+                            "The file does not contain a valid profile name."))
+            return
+        }
         var name = base
         var counter = 2
         while let path = Profiles.profilePath(name), FileManager.default.fileExists(atPath: path.path) {

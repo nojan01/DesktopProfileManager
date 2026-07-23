@@ -43,7 +43,7 @@
 <p>Desktop Profile Manager is a <strong>menu bar app</strong> for macOS that lets you save complete
 work environments as <strong>profiles</strong> and restore them with a single click: desktop icon
 positions, hidden icons, wallpaper, launched apps including window positions, and various system
-settings.</p>
+settings, including browser tabs.</p>
 
 <p>The app has <strong>no Dock icon</strong>. You operate it solely via the icon in the macOS menu
 bar at the top right. Click it to open the menu.</p>
@@ -78,6 +78,8 @@ Privacy &amp; Security › Accessibility). It is required to read and restore wi
 show/hide apps.</p>
 <p>On first use of these features, macOS automatically asks for permission. Without it, icon positions,
 wallpaper, and app launching still work – only exact window restoration does not.</p>
+<p>For browser tabs, macOS may additionally request <strong>Automation</strong> permission for Safari,
+Google Chrome, or Microsoft Edge. This permission is needed to read and reopen tabs.</p>
 
 <h2 id="menu">The menu at a glance</h2>
 <p>From top to bottom the menu consists of:</p>
@@ -108,6 +110,8 @@ emoji, and the profile name.</p>
   <li><strong>Overwrite: &lt;profile&gt;</strong> – Saves the current desktop state into an existing profile,
     keeping its previous settings.</li>
 </ul>
+<div class="note">Profile names may contain letters, numbers, spaces, hyphens, and underscores. A new
+name must not already exist; use “Overwrite” or “Edit profile” to update an existing profile.</div>
 
 <h3>🔄 Restore profile</h3>
 <p>Lists all profiles. A click restores the chosen one – identical to the quick selection above, just
@@ -157,7 +161,7 @@ to clear the selection – no automatic restoration will then take place.</p>
 <ul>
   <li>Saved icon positions, hidden icons, and wallpaper are preserved – the desktop is not re-captured.</li>
   <li>Only name, emoji, Wi-Fi assignment, app selection, system states, and content options are changed.</li>
-  <li>Profiles can also be renamed here.</li>
+  <li>Profiles can also be renamed here; associated time and Wi-Fi rules are updated too.</li>
 </ul>
 
 <h3>🗑 Delete profile</h3>
@@ -186,7 +190,8 @@ at most one of them.</div>
 system when launching many programs.</p>
 
 <h3>🔓 Start at login</h3>
-<p>Sets up a LaunchAgent so the app starts automatically when you log in.</p>
+<p>Sets up a LaunchAgent so the app starts automatically when you log in. The switch is shown as on only
+when macOS has actually loaded the service; the app displays an error if setup fails.</p>
 
 <h3>⌨️ Shortcuts 1–9</h3>
 <p>Enables global keyboard shortcuts: modifier + keys <strong>1–9</strong> restore the first nine profiles
@@ -232,7 +237,11 @@ interval.</p>
   <li><strong>Profile name</strong> – display name (required).</li>
   <li><strong>Wi-Fi name (optional)</strong> – the profile is loaded automatically when connecting to this
     network (if auto switch is active).</li>
-  <li><strong>What to save/restore?</strong> – icon positions, hidden icons, wallpaper, apps.</li>
+  <li><strong>What to save/restore?</strong> – icon positions, hidden icons, wallpaper, apps, and browser tabs.</li>
+  <li><strong>Browser tabs (Safari, Chrome, Edge)</strong> – Saves all open HTTP(S) tabs from currently
+    running supported browsers. On restore they are opened as new tabs and existing tabs remain open.
+    <strong>Firefox</strong> tabs cannot be read reliably without a browser extension. URLs can contain
+    search terms, internal addresses, or parameters and are stored in the profile.</li>
   <li><strong>System state</strong> – dark mode, volume, brightness, Do Not Disturb, Dock, desktop view.</li>
   <li><strong>App list</strong> – which running apps belong to the profile (with <em>Select all</em>).</li>
 </ul>
@@ -251,6 +260,10 @@ Hold <kbd>⌘</kbd> and drag the icon to the desired spot. macOS remembers the p
 Apps are launched preferentially via their bundle ID. Make sure <em>Launch apps on restore</em> is enabled.</p>
 <p><strong>Window positions are not restored.</strong><br>
 Grant the app permission under <em>Privacy &amp; Security › Accessibility</em>.</p>
+<p><strong>My browser tabs are not saved or reopened.</strong><br>
+Enable <em>Browser tabs (Safari, Chrome, Edge)</em> for the profile, keep the browser open while saving,
+and enable <em>Launch apps on restore</em>. Also grant the requested Automation permission. Firefox tabs
+are not captured automatically.</p>
 <p><strong>The widget is hidden after a restart.</strong><br>
 Visibility is saved permanently. Re-enable the widget via <em>Settings › Show profile widget</em>.</p>
 
