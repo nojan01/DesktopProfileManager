@@ -76,7 +76,7 @@ if [ "$NOTARIZE" = "1" ]; then
     echo "📌 Heftet Notarisierungs-Ticket an..."
     xcrun stapler staple "$DMG_OUTPUT"
     xcrun stapler validate "$DMG_OUTPUT"
-    spctl --assess --type open --verbose=4 "$DMG_OUTPUT"
+    spctl --assess --type open --verbose=4 --context context:primary-signature "$DMG_OUTPUT"
 fi
 
 echo ""
