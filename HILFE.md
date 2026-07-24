@@ -316,8 +316,8 @@ Untermenü **🌐 Sprache**: stellt die Oberflächensprache ein:
 
 **⬆️ Nach Updates suchen …** prüft online, ob eine neuere Version verfügbar ist, und
 zeigt das Ergebnis an. Nach deiner Bestätigung lädt die App die DMG-Datei direkt in den Ordner
-**Downloads** und zeigt sie im Finder an. Nur wenn ein Release keine DMG-Datei enthält, wird auf die
-Release-Seite verwiesen.
+**Downloads** und öffnet sie. Ziehe anschließend die App nach **Programme** und starte sie neu.
+Nur wenn ein Release keine DMG-Datei enthält, wird auf die Release-Seite verwiesen.
 
 ### Statuszeile
 

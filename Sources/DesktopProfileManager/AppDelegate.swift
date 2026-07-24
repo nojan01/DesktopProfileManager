@@ -820,12 +820,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let canDownload = release.downloadURL != nil && release.assetName != nil
             alert.messageText = L("Update verfügbar", "Update available")
             alert.informativeText = canDownload
-                ? L("Version v\(release.version) ist verfügbar (installiert: v\(Paths.appVersion)). Das DMG wird nach der Bestätigung in „Downloads“ gespeichert.",
-                    "Version v\(release.version) is available (installed: v\(Paths.appVersion)). The DMG will be saved to Downloads after confirmation.")
+                ? L("Version v\(release.version) ist verfügbar (installiert: v\(Paths.appVersion)). Das DMG wird nach der Bestätigung geladen und geöffnet.",
+                    "Version v\(release.version) is available (installed: v\(Paths.appVersion)). The DMG will be downloaded and opened after confirmation.")
                 : L("Version v\(release.version) ist verfügbar (installiert: v\(Paths.appVersion)). Für dieses Release wurde keine DMG-Datei gefunden.",
                     "Version v\(release.version) is available (installed: v\(Paths.appVersion)). No DMG file was found for this release.")
-            alert.addButton(withTitle: L(canDownload ? "DMG herunterladen" : "Releases öffnen",
-                                         canDownload ? "Download DMG" : "Open releases"))
+            alert.addButton(withTitle: L(canDownload ? "Laden und öffnen" : "Releases öffnen",
+                                         canDownload ? "Download and open" : "Open releases"))
             alert.addButton(withTitle: L("Abbrechen", "Cancel"))
             if alert.runModal() == .alertFirstButtonReturn {
                 if canDownload {
@@ -845,15 +845,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startUpdateDownload(_ release: UpdateManager.Release) {
         Notifier.show(L("Update-Download gestartet", "Update download started"),
-                      L("Das DMG wird in „Downloads“ gespeichert.", "The DMG is being saved to Downloads."))
+                      L("Das DMG wird geladen und danach geöffnet.", "The DMG will be downloaded and then opened."))
         UpdateManager.downloadDMG(release) { result in
             DispatchQueue.main.async {
                 switch result {
                 case .success(let file):
-                    Notifier.show(L("Update heruntergeladen", "Update downloaded"),
-                                  L("Die DMG-Datei wurde in „Downloads“ gespeichert.",
-                                    "The DMG file was saved to Downloads."))
-                    NSWorkspace.shared.activateFileViewerSelecting([file])
+                    NSWorkspace.shared.open(file)
+                    Notifier.show(L("Update bereit", "Update ready"),
+                                  L("Die DMG wurde geöffnet. Ziehe die App nach „Programme“ und starte sie anschließend neu.",
+                                    "The DMG was opened. Drag the app to Applications, then restart it."))
                 case .failure:
                     Notifier.show(L("Update-Download fehlgeschlagen", "Update download failed"),
                                   L("Das DMG konnte nicht heruntergeladen werden. Bitte versuche es später erneut.",
