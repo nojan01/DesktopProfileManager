@@ -59,15 +59,12 @@ enum BrowserTabs {
             guard !valid.isEmpty else { continue }
 
             let commands = tabCreationCommands(valid)
-            let script = """
-            tell application "\(browser.name)"
-                activate
-                if (count of windows) is 0 then make new window
-                tell front window
-            \(commands)
-                end tell
-            end tell
-            """
+            let wasRunning = NSWorkspace.shared.runningApplications.contains {
+                $0.bundleIdentifier == browser.bundleID
+            }
+            let script = restoreScript(browserName: browser.name,
+                                       tabCommands: commands,
+                                       browserWasRunning: wasRunning)
             if Shell.runAppleScript(script) != nil {
                 openedTabs += valid.count
             } else {
@@ -112,5 +109,29 @@ enum BrowserTabs {
         urls.map {
             "    make new tab at end of tabs with properties {URL:\"\(Shell.esc($0))\"}"
         }.joined(separator: "\n")
+    }
+
+    /// Browser erzeugen beim Start häufig einen zusätzlichen leeren Startseiten-Tab.
+    /// Er wird nur entfernt, wenn der Browser durch die Wiederherstellung geöffnet
+    /// wurde oder kein Fenster besaß. Bereits vorhandene Nutzer-Tabs bleiben erhalten.
+    static func restoreScript(browserName: String, tabCommands: String,
+                              browserWasRunning: Bool) -> String {
+        let discardInitialTab = browserWasRunning ? "false" : "true"
+        return """
+        tell application "\(browserName)"
+            set discardInitialTab to \(discardInitialTab)
+            activate
+            if (count of windows) is 0 then
+                make new window
+                set discardInitialTab to true
+            end if
+            tell front window
+        \(tabCommands)
+                if discardInitialTab and (count of tabs) > 1 then
+                    close tab 1
+                end if
+            end tell
+        end tell
+        """
     }
 }
