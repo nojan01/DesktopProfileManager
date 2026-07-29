@@ -3,7 +3,7 @@ import Foundation
 /// Globale Konstanten – kompatibel zur Python-App (gleicher ~/.iconguard-Ordner).
 enum Paths {
     static let appName = "Desktop Profile Manager"
-    static let appVersion = "1.4.3"
+    static let appVersion = "1.4.4"
 
     static let profilesDir: URL = FileManager.default
         .homeDirectoryForCurrentUser.appendingPathComponent(".iconguard", isDirectory: true)

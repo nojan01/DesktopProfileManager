@@ -58,13 +58,8 @@ enum BrowserTabs {
             let valid = validURLs(urls)
             guard !valid.isEmpty else { continue }
 
-            let commands = tabCreationCommands(valid)
-            let wasRunning = NSWorkspace.shared.runningApplications.contains {
-                $0.bundleIdentifier == browser.bundleID
-            }
             let script = restoreScript(browserName: browser.name,
-                                       tabCommands: commands,
-                                       browserWasRunning: wasRunning)
+                                       urls: valid)
             if Shell.runAppleScript(script) != nil {
                 openedTabs += valid.count
             } else {
@@ -112,23 +107,32 @@ enum BrowserTabs {
     }
 
     /// Browser erzeugen beim Start häufig einen zusätzlichen leeren Startseiten-Tab.
-    /// Er wird nur entfernt, wenn der Browser durch die Wiederherstellung geöffnet
-    /// wurde oder kein Fenster besaß. Bereits vorhandene Nutzer-Tabs bleiben erhalten.
-    static func restoreScript(browserName: String, tabCommands: String,
-                              browserWasRunning: Bool) -> String {
-        let discardInitialTab = browserWasRunning ? "false" : "true"
+    /// Der Browser kann zuvor bereits durch die App-Wiederherstellung gestartet worden
+    /// sein. Daher wird nicht der Prozessstatus, sondern die Startseiten-URL geprüft.
+    /// Bereits vorhandene Nutzer-Tabs bleiben unverändert.
+    static func restoreScript(browserName: String, urls: [String]) -> String {
+        guard let firstURL = urls.first else { return "" }
+        let allTabCommands = tabCreationCommands(urls)
+        let remainingTabCommands = tabCreationCommands(Array(urls.dropFirst()))
         return """
         tell application "\(browserName)"
-            set discardInitialTab to \(discardInitialTab)
             activate
             if (count of windows) is 0 then
                 make new window
-                set discardInitialTab to true
             end if
             tell front window
-        \(tabCommands)
-                if discardInitialTab and (count of tabs) > 1 then
-                    close tab 1
+                set reuseStartPageTab to false
+                try
+                    set firstTabURL to URL of tab 1
+                    if firstTabURL is in {"favorites://", "about:blank", "chrome://newtab/", "edge://newtab/", "safari://startpage", "safari://startpage/"} then
+                        set reuseStartPageTab to true
+                    end if
+                end try
+                if reuseStartPageTab then
+                    set URL of tab 1 to "\(Shell.esc(firstURL))"
+        \(remainingTabCommands)
+                else
+        \(allTabCommands)
                 end if
             end tell
         end tell

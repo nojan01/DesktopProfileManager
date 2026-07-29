@@ -52,18 +52,13 @@ final class DesktopProfileManagerTests: XCTestCase {
         XCTAssertFalse(commands.contains("tabs of front window"))
     }
 
-    func testBrowserTabsDiscardStartPageOnlyForNewBrowser() {
-        let newBrowserScript = BrowserTabs.restoreScript(browserName: "Safari",
-                                                         tabCommands: "    make new tab",
-                                                         browserWasRunning: false)
-        XCTAssertTrue(newBrowserScript.contains("set discardInitialTab to true"))
-        XCTAssertTrue(newBrowserScript.contains("if discardInitialTab and (count of tabs) > 1 then"))
-        XCTAssertTrue(newBrowserScript.contains("close tab 1"))
-
-        let runningBrowserScript = BrowserTabs.restoreScript(browserName: "Safari",
-                                                             tabCommands: "    make new tab",
-                                                             browserWasRunning: true)
-        XCTAssertTrue(runningBrowserScript.contains("set discardInitialTab to false"))
+    func testBrowserTabsReuseKnownStartPageInsteadOfOpeningAnotherTab() {
+        let script = BrowserTabs.restoreScript(browserName: "Safari",
+                                               urls: ["file:///Users/nojan/index.html", "https://example.com"])
+        XCTAssertTrue(script.contains("favorites://"))
+        XCTAssertTrue(script.contains("set URL of tab 1 to \"file:///Users/nojan/index.html\""))
+        XCTAssertTrue(script.contains("make new tab at end of tabs with properties {URL:\"https://example.com\"}"))
+        XCTAssertFalse(script.contains("close tab 1"))
     }
 
     func testUpdateReleaseUsesDMGAssetAndIgnoresOtherAssets() throws {
