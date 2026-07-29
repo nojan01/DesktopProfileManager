@@ -356,11 +356,11 @@ Fenster mit folgenden Feldern:
   - **Versteckte Icons**
   - **Hintergrundbild**
   - **Apps**
-  - **Browser-Tabs (Safari, Chrome, Edge)** – Speichert alle geöffneten HTTP(S)-Tabs
-    der aktuell laufenden unterstützten Browser. Beim Wiederherstellen werden sie als
-    neue Tabs geöffnet; vorhandene Tabs bleiben erhalten. Firefox-Tabs können ohne
-    Browser-Erweiterung nicht zuverlässig ausgelesen werden. URLs werden im Profil
-    gespeichert und können Suchbegriffe, interne Adressen oder Parameter enthalten.
+  - **Browser-Tabs (Safari, Chrome, Edge)** – Speichert alle geöffneten Web- und
+    lokalen Datei-Tabs (`http(s)://`, `file://`) der aktuell laufenden unterstützten
+    Browser. Beim Wiederherstellen werden sie als neue Tabs geöffnet; vorhandene Tabs
+    bleiben erhalten. Firefox-Tabs können ohne Browser-Erweiterung nicht zuverlässig
+    ausgelesen werden. Datei-URLs werden nur für lokale, absolute Pfade erfasst.
 - **Systemzustand** – optionale Schalter wie Dark Mode, Lautstärke, Helligkeit,
   „Nicht stören", Dock und Desktop-Ansicht.
 - **App-Liste** – Auswahl, welche der laufenden Apps zum Profil gehören sollen

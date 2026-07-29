@@ -21,7 +21,7 @@ enum BrowserTabs {
         Browser(name: "Microsoft Edge", bundleID: "com.microsoft.edgemac"),
     ]
 
-    /// Liest die HTTP(S)-Tabs aktuell laufender unterstützter Browser aus.
+    /// Liest Web- und lokale Datei-Tabs aktuell laufender unterstützter Browser aus.
     static func capture() -> [String: [String]] {
         let runningBundleIDs = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
         var result: [String: [String]] = [:]
@@ -91,9 +91,16 @@ enum BrowserTabs {
         var seen = Set<String>()
         return candidates.filter { candidate in
             guard let url = URL(string: candidate),
-                  let scheme = url.scheme?.lowercased(),
-                  ["http", "https"].contains(scheme),
-                  url.host != nil else { return false }
+                  let scheme = url.scheme?.lowercased() else { return false }
+
+            let isWebURL = ["http", "https"].contains(scheme) && url.host != nil
+            // Nur lokale, absolute Datei-URLs akzeptieren. file://<fremder-host>/...
+            // wird bewusst ausgeschlossen, damit keine Netzwerkfreigaben geöffnet werden.
+            let isLocalFileURL = scheme == "file"
+                && url.isFileURL
+                && (url.host == nil || url.host?.lowercased() == "localhost")
+                && url.path.hasPrefix("/")
+            guard isWebURL || isLocalFileURL else { return false }
             return seen.insert(candidate).inserted
         }
     }

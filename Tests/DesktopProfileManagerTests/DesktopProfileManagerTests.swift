@@ -19,23 +19,30 @@ final class DesktopProfileManagerTests: XCTestCase {
         XCTAssertEqual(result.output.count, 131_072)
     }
 
-    func testBrowserTabsAcceptOnlyUniqueHTTPURLs() {
+    func testBrowserTabsAcceptOnlyUniqueWebAndLocalFileURLs() {
         let urls = BrowserTabs.validURLs([
             "https://example.com",
             "https://example.com",
             "http://localhost:8080/path",
-            "file:///private/secret",
+            "file:///Users/nojan/Documents/GitHub/streaming-selector/index.html",
+            "file:///Users/nojan/Documents/GitHub/streaming-selector/index.html",
+            "file://remote-host/Shared/index.html",
+            "file:relative/index.html",
             "not a url",
         ])
-        XCTAssertEqual(urls, ["https://example.com", "http://localhost:8080/path"])
+        XCTAssertEqual(urls, [
+            "https://example.com",
+            "http://localhost:8080/path",
+            "file:///Users/nojan/Documents/GitHub/streaming-selector/index.html",
+        ])
     }
 
     func testBrowserTabsParseSkipsUnsupportedValues() {
         let parsed = BrowserTabs.parse([
-            "com.apple.Safari": ["https://example.com", "invalid"],
+            "com.apple.Safari": ["https://example.com", "file:///Users/nojan/index.html", "invalid"],
             "com.google.Chrome": "not an array",
         ])
-        XCTAssertEqual(parsed, ["com.apple.Safari": ["https://example.com"]])
+        XCTAssertEqual(parsed, ["com.apple.Safari": ["https://example.com", "file:///Users/nojan/index.html"]])
     }
 
     func testBrowserTabsCreateTabsInsideTheCurrentWindow() {

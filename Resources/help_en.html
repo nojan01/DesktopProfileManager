@@ -241,10 +241,12 @@ interval.</p>
   <li><strong>Wi-Fi name (optional)</strong> – the profile is loaded automatically when connecting to this
     network (if auto switch is active).</li>
   <li><strong>What to save/restore?</strong> – icon positions, hidden icons, wallpaper, apps, and browser tabs.</li>
-  <li><strong>Browser tabs (Safari, Chrome, Edge)</strong> – Saves all open HTTP(S) tabs from currently
+  <li><strong>Browser tabs (Safari, Chrome, Edge)</strong> – Saves all open web and local file tabs
+    (<code>http(s)://</code>, <code>file://</code>) from currently
     running supported browsers. On restore they are opened as new tabs and existing tabs remain open.
     <strong>Firefox</strong> tabs cannot be read reliably without a browser extension. URLs can contain
-    search terms, internal addresses, or parameters and are stored in the profile.</li>
+    search terms, internal addresses, or parameters and are stored in the profile. File URLs are captured
+    only for local, absolute paths.</li>
   <li><strong>System state</strong> – dark mode, volume, brightness, Do Not Disturb, Dock, desktop view.</li>
   <li><strong>App list</strong> – which running apps belong to the profile (with <em>Select all</em>).</li>
 </ul>
