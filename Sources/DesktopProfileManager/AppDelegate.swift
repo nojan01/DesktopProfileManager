@@ -14,6 +14,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var appSelectionWindow: AppSelectionWindow?
 
     private var autoRestoreTimer: Timer?
+    /// Wiederherstellungen dürfen nicht parallel laufen: parallele AppleScripts
+    /// könnten sonst Tabs verschiedener Profile in denselben Browser schreiben.
+    private let restoreQueue = DispatchQueue(label: "com.desktopprofilemanager.restore")
 
     private let githubRepo = "nojan01/IconGuard"
     private let launchDelayOptions: [Double] = [0, 0.5, 1, 1.5, 2, 3, 5]
@@ -491,7 +494,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let quitOthers = config.get("quit_other_apps", false)
         let delay = config.get("app_launch_delay", 1.5)
 
-        DispatchQueue.global().async {
+        restoreQueue.async {
             let r = Profiles.restore(name, includeWallpaper: incWallpaper, includeApps: incApps,
                                      hideOthers: hideOthers, quitOthers: quitOthers, launchDelay: delay,
                                      iconsOnly: iconsOnly)
