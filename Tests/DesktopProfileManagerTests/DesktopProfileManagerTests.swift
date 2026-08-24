@@ -19,6 +19,21 @@ final class DesktopProfileManagerTests: XCTestCase {
         XCTAssertEqual(result.output.count, 131_072)
     }
 
+    func testFinderVisibilityArgumentsDisableShowingHiddenFiles() {
+        XCTAssertEqual(DesktopIcons.finderVisibilityArguments(showHiddenFiles: false), [
+            "write", "com.apple.finder", "AppleShowAllFiles", "-bool", "false",
+        ])
+    }
+
+    func testFinderRefreshScriptEscapesDesktopPath() {
+        let script = DesktopIcons.finderRefreshScript(
+            desktopPath: #"/Users/Test/Desktop "quoted""#)
+
+        XCTAssertTrue(script.contains(
+            #"set desktopFolder to (POSIX file "/Users/Test/Desktop \"quoted\"") as alias"#))
+        XCTAssertTrue(script.contains("update desktopFolder"))
+    }
+
     func testBrowserTabsAcceptOnlyUniqueWebAndLocalFileURLs() {
         let urls = BrowserTabs.validURLs([
             "https://example.com",

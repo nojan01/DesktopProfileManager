@@ -98,14 +98,40 @@ enum DesktopIcons {
         return getAllItems().filter { $0.hidden }.map { $0.name }
     }
 
+    /// Wendet mehrere Sichtbarkeitsänderungen an und aktualisiert Finder danach
+    /// genau einmal.
+    @discardableResult
+    static func applyVisibility(_ changes: [(name: String, hidden: Bool)])
+        -> (success: Int, failed: Int) {
+        var success = 0
+        var failed = 0
+        var hidItem = false
+
+        for change in changes {
+            if setHidden(change.name, change.hidden) {
+                success += 1
+                if change.hidden { hidItem = true }
+            } else {
+                failed += 1
+            }
+        }
+
+        if hidItem {
+            enforceFinderHidesHiddenFiles()
+        } else if success > 0 {
+            refreshFinderDesktop()
+        }
+        return (success, failed)
+    }
+
     @discardableResult
     static func hideItem(_ name: String) -> Bool {
-        return setHidden(name, true)
+        return applyVisibility([(name, true)]).failed == 0
     }
 
     @discardableResult
     static func unhideItem(_ name: String) -> Bool {
-        return setHidden(name, false)
+        return applyVisibility([(name, false)]).failed == 0
     }
 
     private static func setHidden(_ name: String, _ hidden: Bool) -> Bool {
@@ -120,5 +146,40 @@ enum DesktopIcons {
         } catch {
             return false
         }
+    }
+
+    /// macOS zeigt unsichtbare Dateien ausgegraut an, wenn Finders globale
+    /// Anzeige versteckter Dateien aktiv ist. Beim Ausblenden muss diese Option
+    /// daher explizit ausgeschaltet und Finder neu geladen werden.
+    private static func enforceFinderHidesHiddenFiles() {
+        let result = Shell.run("/usr/bin/defaults", finderVisibilityArguments(showHiddenFiles: false))
+        if result.code == 0 {
+            let restart = Shell.run("/usr/bin/killall", ["Finder"], timeout: 5)
+            if restart.code == 0 { return }
+        }
+        refreshFinderDesktop()
+    }
+
+    static func finderVisibilityArguments(showHiddenFiles: Bool) -> [String] {
+        return ["write", "com.apple.finder", "AppleShowAllFiles", "-bool",
+                showHiddenFiles ? "true" : "false"]
+    }
+
+    /// Erzwingt, dass Finder die geänderten Dateiattribute neu einliest, ohne
+    /// Finder neu zu starten. Wird insbesondere beim Einblenden verwendet.
+    private static func refreshFinderDesktop() {
+        NSWorkspace.shared.noteFileSystemChanged(Paths.desktop.path)
+        if Shell.runAppleScript(finderRefreshScript(desktopPath: Paths.desktop.path)) == nil {
+            _ = Shell.run("/usr/bin/killall", ["Finder"], timeout: 5)
+        }
+    }
+
+    static func finderRefreshScript(desktopPath: String) -> String {
+        return """
+        set desktopFolder to (POSIX file "\(Shell.esc(desktopPath))") as alias
+        tell application "Finder"
+            update desktopFolder
+        end tell
+        """
     }
 }

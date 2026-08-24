@@ -131,6 +131,8 @@ in einem Untermenü. Ist noch kein Profil vorhanden, steht hier ein Hinweis.
 dem Schreibtisch aufgelistet sind. Pro Eintrag kannst du festlegen, ob das Icon
 sichtbar oder versteckt sein soll. So blendest du einzelne Symbole gezielt aus,
 ohne sie zu löschen. Der Zustand kann anschließend Teil eines Profils werden.
+Beim Ausblenden deaktiviert die App Finders systemweite Anzeige versteckter
+Dateien, damit die Icons nicht nur ausgegraut erscheinen.
 
 ### Apps für Profile auswählen
 

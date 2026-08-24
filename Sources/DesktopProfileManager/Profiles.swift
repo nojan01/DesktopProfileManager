@@ -279,10 +279,10 @@ enum Profiles {
         }
 
         // Sichtbarkeit wiederherstellen
-        for item in DesktopIcons.getAllItems() {
-            if hiddenList.contains(item.name) { DesktopIcons.hideItem(item.name) }
-            else { DesktopIcons.unhideItem(item.name) }
+        let visibility = DesktopIcons.getAllItems().map {
+            (name: $0.name, hidden: hiddenList.contains($0.name))
         }
+        DesktopIcons.applyVisibility(visibility)
 
         var success = 0, failed = 0
         if restorePositions, let posObj = data["positions"] as? [String: [String: Int]] {
