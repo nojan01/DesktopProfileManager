@@ -13,6 +13,13 @@ final class DesktopProfileManagerTests: XCTestCase {
         XCTAssertNil(Profiles.importName("///"))
     }
 
+    func testMITLicenseTextIsAvailableInBothLanguages() {
+        XCTAssertTrue(AppLicense.mitText(for: .de).contains("MIT-Lizenz"))
+        XCTAssertTrue(AppLicense.mitText(for: .de).contains("Verbindlich ist die englische"))
+        XCTAssertTrue(AppLicense.mitText(for: .en).contains("MIT License"))
+        XCTAssertTrue(AppLicense.mitText(for: .en).contains("THE SOFTWARE IS PROVIDED"))
+    }
+
     func testShellReadsLargeStandardOutputBeforeWaitingForExit() {
         let result = Shell.run("/bin/sh", ["-c", "head -c 131072 /dev/zero | tr '\\0' x"], timeout: 5)
         XCTAssertEqual(result.code, 0)

@@ -338,7 +338,8 @@ Am unteren Ende des Hauptmenüs:
   Anlegen eines Profils.
 - **Über Desktop Profile Manager** – zeigt Version, Funktionsüberblick, den Hinweis
   zur Bedienungshilfen-Berechtigung, das Copyright (© 2026 Norbert Jander) und die
-  Lizenz (**MIT**).
+  Lizenz (**MIT**). Über **MIT-Lizenz anzeigen** öffnet sich der vollständige
+  Lizenztext in der gewählten Sprache.
 - **Beenden** – schließt die App (Tastenkürzel **⌘Q**, wenn das Menü geöffnet ist).
 
 ---

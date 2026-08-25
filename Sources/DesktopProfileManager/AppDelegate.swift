@@ -953,10 +953,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             License: MIT
             """)
+        alert.addButton(withTitle: L("MIT-Lizenz anzeigen", "Show MIT License"))
+        alert.addButton(withTitle: L("Schließen", "Close"))
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-        alert.runModal()
+        if alert.runModal() == .alertFirstButtonReturn {
+            showMITLicense()
+        }
         NSApp.setActivationPolicy(.accessory)
+    }
+
+    private func showMITLicense() {
+        let alert = NSAlert()
+        alert.messageText = L("MIT-Lizenz", "MIT License")
+        alert.informativeText = L("Vollständiger Lizenztext", "Full license text")
+
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 560, height: 320))
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.borderType = .bezelBorder
+
+        let textView = NSTextView(frame: scrollView.bounds)
+        textView.string = AppLicense.mitText(for: Localization.current)
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.drawsBackground = false
+        textView.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        textView.textContainerInset = NSSize(width: 8, height: 8)
+        textView.minSize = NSSize(width: 0, height: 0)
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude,
+                                  height: CGFloat.greatestFiniteMagnitude)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        textView.textContainer?.widthTracksTextView = true
+        scrollView.documentView = textView
+
+        alert.accessoryView = scrollView
+        alert.addButton(withTitle: L("Schließen", "Close"))
+        alert.runModal()
     }
 
     @objc func onQuit() {

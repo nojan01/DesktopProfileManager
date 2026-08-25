@@ -32,7 +32,7 @@ Native **Swift/AppKit** macOS Menu Bar App zum Speichern und Wiederherstellen ko
 
 ### DMG (empfohlen)
 1. Das Script `build_dmg.sh` ausführen
-2. Die erstellte `DesktopProfileManager-Swift-1.4.9.dmg` öffnen
+2. Die erstellte `DesktopProfileManager-Swift-1.5.0.dmg` öffnen
 3. App nach `/Programme` ziehen
 4. Aus Launchpad starten
 
