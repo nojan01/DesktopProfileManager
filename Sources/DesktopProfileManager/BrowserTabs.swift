@@ -63,7 +63,13 @@ enum BrowserTabs {
 
             let script = restoreScript(browserName: browser.name,
                                        urls: valid)
-            if Shell.runAppleScript(script, timeout: restoreTimeout) != nil {
+            let result = Shell.runAppleScriptResult(script, timeout: restoreTimeout)
+            if result.code == 0 {
+                openedTabs += valid.count
+            } else if result.code == -1 {
+                // Safari kann die Tabs bereits sichtbar geöffnet haben, während
+                // es beim Schließen alter Fenster noch nicht zurückkehrt. Das
+                // kurze Schutz-Timeout ist daher keine Öffnungs-Fehlermeldung.
                 openedTabs += valid.count
             } else {
                 failedBrowsers.append(browser.name)

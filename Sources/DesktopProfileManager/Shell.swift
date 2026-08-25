@@ -58,10 +58,15 @@ enum Shell {
         return (out.trimmingCharacters(in: .whitespacesAndNewlines), timedOut ? -1 : process.terminationStatus)
     }
 
+    /// Führt ein AppleScript via `osascript` aus und liefert auch den Exit-Status.
+    static func runAppleScriptResult(_ script: String, timeout: TimeInterval = 30) -> (output: String, code: Int32) {
+        run("/usr/bin/osascript", ["-e", script], timeout: timeout)
+    }
+
     /// Führt ein AppleScript via `osascript` aus. Gibt nil bei Fehler zurück.
     @discardableResult
     static func runAppleScript(_ script: String, timeout: TimeInterval = 30) -> String? {
-        let result = run("/usr/bin/osascript", ["-e", script], timeout: timeout)
+        let result = runAppleScriptResult(script, timeout: timeout)
         if result.code != 0 {
             return nil
         }
