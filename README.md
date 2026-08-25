@@ -15,7 +15,7 @@ Dieses Projekt steht unter der [MIT-Lizenz](LICENSE). Copyright © 2026 Norbert 
 - **Emoji-Symbole** – Jedem Profil ein eigenes Emoji als Erkennungssymbol zuweisen
 - **Desktop-Hintergrund** – Hintergrundbild pro Profil speichern & wiederherstellen
 - **Apps & Fenster** – Laufende Apps inkl. Fensterposition/-größe sichern und beim Wiederherstellen starten (optional andere Apps ausblenden/beenden)
-- **Browser-Tabs** – Web- und lokale Datei-Tabs (`http(s)://`, `file://`) aus Safari, Chrome und Edge pro Profil sichern und beim Wiederherstellen öffnen
+- **Browser-Tabs** – Web- und lokale Datei-Tabs (`http(s)://`, `file://`) aus Safari, Chrome und Edge pro Profil sichern und beim Wiederherstellen als alleinigen Tab-Satz des Profils öffnen
 - **Systemzustand** – Dark Mode, Lautstärke, Helligkeit, Nicht stören, Dock und Desktop-Ansicht pro Profil sichern
 - **Icons verstecken** – Einzelne Desktop-Dateien ein-/ausblenden
 - **Tastenkombinationen** – Die ersten 9 Profile per Hotkey laden (Modifier wählbar: ⌘⌃, ⌃, ⌥⌘, ⌃⇧)
@@ -36,7 +36,7 @@ Dieses Projekt steht unter der [MIT-Lizenz](LICENSE). Copyright © 2026 Norbert 
 
 ### DMG (empfohlen)
 1. Das Script `build_dmg.sh` ausführen
-2. Die erstellte `DesktopProfileManager-Swift-1.5.0.dmg` öffnen
+2. Die erstellte `DesktopProfileManager-Swift-1.5.1.dmg` öffnen
 3. App nach `/Programme` ziehen
 4. Aus Launchpad starten
 

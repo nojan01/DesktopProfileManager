@@ -35,7 +35,7 @@ enum BrowserTabs {
                             set output to output & (URL of t) & linefeed
                         end try
                     end repeat
-                end if
+                end repeat
                 return output
             end tell
             """
@@ -46,8 +46,9 @@ enum BrowserTabs {
         return result
     }
 
-    /// Öffnet die gespeicherten URLs als neue Tabs. Die Browser werden dabei bei
-    /// Bedarf gestartet; vorhandene Fenster und Tabs bleiben unverändert.
+    /// Stellt jeden gespeicherten Browser in einem eigenen Profilfenster wieder her.
+    /// Erst wenn alle Profil-Tabs erzeugt wurden, werden ältere Fenster geschlossen.
+    /// Damit bleibt beim Profilwechsel ausschließlich der gespeicherte Satz an Tabs.
     @discardableResult
     static func restore(_ savedTabs: [String: [String]]) -> RestoreOutcome {
         var openedTabs = 0
@@ -119,35 +120,34 @@ enum BrowserTabs {
         }.joined(separator: "\n")
     }
 
-    /// Browser erzeugen beim Start häufig einen zusätzlichen leeren Startseiten-Tab.
-    /// Der Browser kann zuvor bereits durch die App-Wiederherstellung gestartet worden
-    /// sein. Daher wird nicht der Prozessstatus, sondern die Startseiten-URL geprüft.
-    /// Bereits vorhandene Nutzer-Tabs bleiben unverändert.
+    /// Erstellt ein neues Browserfenster für das Profil und füllt es vollständig.
+    /// Anschließend werden alle zuvor vorhandenen Fenster geschlossen. Das Erzeugen
+    /// erfolgt bewusst vor dem Schließen, damit Safari die neue Sitzung nicht mit
+    /// einem gerade geschlossenen Vordergrundfenster verwechselt.
     static func restoreScript(browserName: String, urls: [String]) -> String {
         guard let firstURL = urls.first else { return "" }
-        let allTabCommands = tabCreationCommands(urls)
         let remainingTabCommands = tabCreationCommands(Array(urls.dropFirst()))
         return """
         tell application "\(browserName)"
             activate
-            if (count of windows) is 0 then
-                make new window
-            end if
-            tell front window
-                set reuseStartPageTab to false
+            make new window
+            set profileWindow to front window
+            tell profileWindow
                 try
-                    set firstTabURL to URL of tab 1
-                    if firstTabURL is in {"favorites://", "about:blank", "chrome://newtab/", "edge://newtab/", "safari://startpage", "safari://startpage/"} then
-                        set reuseStartPageTab to true
-                    end if
-                end try
-                if reuseStartPageTab then
                     set URL of tab 1 to "\(Shell.esc(firstURL))"
+                on error
+                    make new tab at end of tabs with properties {URL:"\(Shell.esc(firstURL))"}
+                end try
         \(remainingTabCommands)
-                else
-        \(allTabCommands)
-                end if
             end tell
+            set profileWindowID to id of profileWindow
+            repeat while (count of windows) > 1
+                if (id of window 1) is not profileWindowID then
+                    close window 1
+                else
+                    close window 2
+                end if
+            end repeat
         end tell
         """
     }

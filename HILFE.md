@@ -361,9 +361,8 @@ Fenster mit folgenden Feldern:
   - **Apps**
   - **Browser-Tabs (Safari, Chrome, Edge)** – Speichert alle geöffneten Web- und
     lokalen Datei-Tabs (`http(s)://`, `file://`) der aktuell laufenden unterstützten
-    Browser. Beim Wiederherstellen werden sie als neue Tabs geöffnet; vorhandene Tabs
-    bleiben erhalten. Ist ein leerer Startseiten-Tab geöffnet, ersetzt die App ihn durch
-    den ersten gespeicherten Tab. Firefox-Tabs können ohne Browser-Erweiterung nicht zuverlässig
+    Browser. Beim Wiederherstellen öffnet die App ein neues Profilfenster mit genau diesen
+    Tabs und schließt danach ältere Fenster desselben Browsers. Firefox-Tabs können ohne Browser-Erweiterung nicht zuverlässig
     ausgelesen werden. Datei-URLs werden nur für lokale, absolute Pfade erfasst.
 - **Systemzustand** – optionale Schalter wie Dark Mode, Lautstärke, Helligkeit,
   „Nicht stören", Dock und Desktop-Ansicht.
