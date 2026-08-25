@@ -59,10 +59,14 @@ enum BrowserTabs {
             let valid = validURLs(urls)
             guard !valid.isEmpty else { continue }
 
-            let script = restoreScript(browserName: browser.name,
-                                       urls: valid)
-            if Shell.runAppleScript(script) != nil {
+            let creationScript = restoreScript(browserName: browser.name,
+                                               urls: valid)
+            if Shell.runAppleScript(creationScript) != nil {
                 openedTabs += valid.count
+                // Das Bereinigen ist bewusst ein zweites, unabhängiges Script:
+                // Ein Fehler beim Schließen alter Fenster darf niemals das zuvor
+                // erfolgreiche Öffnen der Profil-Tabs rückgängig machen.
+                _ = Shell.runAppleScript(cleanupScript(browserName: browser.name))
             } else {
                 failedBrowsers.append(browser.name)
             }
@@ -121,9 +125,8 @@ enum BrowserTabs {
     }
 
     /// Erstellt ein neues Browserfenster für das Profil und füllt es vollständig.
-    /// Anschließend werden alle zuvor vorhandenen Fenster geschlossen. Das Erzeugen
-    /// erfolgt bewusst vor dem Schließen, damit Safari die neue Sitzung nicht mit
-    /// einem gerade geschlossenen Vordergrundfenster verwechselt.
+    /// Das Schließen alter Fenster ist davon getrennt, damit es die Wiederherstellung
+    /// nicht blockieren kann.
     static func restoreScript(browserName: String, urls: [String]) -> String {
         guard let firstURL = urls.first else { return "" }
         let remainingTabCommands = tabCreationCommands(Array(urls.dropFirst()))
@@ -131,8 +134,7 @@ enum BrowserTabs {
         tell application "\(browserName)"
             activate
             make new window
-            set profileWindow to front window
-            tell profileWindow
+            tell front window
                 try
                     set URL of tab 1 to "\(Shell.esc(firstURL))"
                 on error
@@ -140,13 +142,27 @@ enum BrowserTabs {
                 end try
         \(remainingTabCommands)
             end tell
-            set profileWindowID to id of profileWindow
+        end tell
+        """
+    }
+
+    /// Behält das soeben erzeugte Vordergrundfenster und schließt nur ältere
+    /// Browserfenster. Fehler werden im aufrufenden Code absichtlich ignoriert,
+    /// weil die Profil-Tabs zu diesem Zeitpunkt bereits geöffnet sind.
+    static func cleanupScript(browserName: String) -> String {
+        """
+        tell application "\(browserName)"
+            set profileWindowID to id of front window
             repeat while (count of windows) > 1
-                if (id of window 1) is not profileWindowID then
-                    close window 1
-                else
-                    close window 2
-                end if
+                try
+                    if (id of window 1) is profileWindowID then
+                        close window 2
+                    else
+                        close window 1
+                    end if
+                on error
+                    exit repeat
+                end try
             end repeat
         end tell
         """

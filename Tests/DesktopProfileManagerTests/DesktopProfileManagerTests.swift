@@ -94,13 +94,16 @@ final class DesktopProfileManagerTests: XCTestCase {
         let script = BrowserTabs.restoreScript(browserName: "Safari",
                                                urls: ["file:///Users/nojan/index.html", "https://example.com"])
         XCTAssertTrue(script.contains("make new window"))
-        XCTAssertTrue(script.contains("set profileWindow to front window"))
+        XCTAssertTrue(script.contains("tell front window"))
         XCTAssertTrue(script.contains("set URL of tab 1 to \"file:///Users/nojan/index.html\""))
         XCTAssertTrue(script.contains("make new tab at end of tabs with properties {URL:\"https://example.com\"}"))
-        XCTAssertTrue(script.contains("set profileWindowID to id of profileWindow"))
-        XCTAssertTrue(script.contains("(id of window 1) is not profileWindowID"))
-        XCTAssertTrue(script.contains("close window 1"))
-        XCTAssertTrue(script.contains("close window 2"))
+        XCTAssertFalse(script.contains("close window"))
+
+        let cleanup = BrowserTabs.cleanupScript(browserName: "Safari")
+        XCTAssertTrue(cleanup.contains("set profileWindowID to id of front window"))
+        XCTAssertTrue(cleanup.contains("(id of window 1) is profileWindowID"))
+        XCTAssertTrue(cleanup.contains("close window 1"))
+        XCTAssertTrue(cleanup.contains("close window 2"))
     }
 
     func testUpdateReleaseUsesDMGAssetAndIgnoresOtherAssets() throws {
