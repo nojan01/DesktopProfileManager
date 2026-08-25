@@ -60,6 +60,22 @@ final class DesktopProfileManagerTests: XCTestCase {
         XCTAssertEqual(parsed, ["com.apple.Safari": ["https://example.com", "file:///Users/nojan/index.html"]])
     }
 
+    func testBrowserTabsKeepPreviousTabsWhenCaptureTemporarilyReturnsNothing() {
+        let retained = BrowserTabs.tabsForSave(
+            captured: [:],
+            existing: ["com.apple.Safari": ["https://example.com"]],
+            captureRequested: true)
+        XCTAssertTrue(retained.preserved)
+        XCTAssertEqual(retained.tabs, ["com.apple.Safari": ["https://example.com"]])
+
+        let replacement = BrowserTabs.tabsForSave(
+            captured: ["com.apple.Safari": ["https://new.example"]],
+            existing: ["com.apple.Safari": ["https://example.com"]],
+            captureRequested: true)
+        XCTAssertFalse(replacement.preserved)
+        XCTAssertEqual(replacement.tabs, ["com.apple.Safari": ["https://new.example"]])
+    }
+
     func testBrowserTabsCreateTabsInsideTheCurrentWindow() {
         let commands = BrowserTabs.tabCreationCommands(["https://example.com"])
         XCTAssertEqual(commands,

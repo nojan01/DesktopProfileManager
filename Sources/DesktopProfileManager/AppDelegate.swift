@@ -544,8 +544,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if let error = r.error {
                     Notifier.show(L("Fehler", "Error"), error)
                 } else {
-                    Notifier.show(L("Profil '\(name)' gespeichert", "Profile '\(name)' saved"),
-                                  L("\(r.count) Icons gesichert", "\(r.count) icons saved"))
+                    var message = L("\(r.count) Icons gesichert", "\(r.count) icons saved")
+                    if r.preservedBrowserTabs {
+                        message += "\n" + L("Safari lieferte keine Tabs; die zuvor gespeicherten Tabs wurden beibehalten.",
+                                              "Safari did not provide tabs; the previously saved tabs were kept.")
+                    }
+                    Notifier.show(L("Profil '\(name)' gespeichert", "Profile '\(name)' saved"), message)
                 }
                 self.buildMenu()
             }

@@ -79,6 +79,19 @@ enum BrowserTabs {
         return result
     }
 
+    /// Safari kann beim Speichern vorübergehend keine URLs liefern, etwa während
+    /// einer Sitzungswiederherstellung. In diesem Fall dürfen beim Überschreiben
+    /// eines Profils bereits gespeicherte Tabs nicht verloren gehen.
+    static func tabsForSave(captured: [String: [String]], existing: Any?,
+                            captureRequested: Bool) -> (tabs: [String: [String]], preserved: Bool) {
+        guard captureRequested, captured.isEmpty else {
+            return (captured, false)
+        }
+        let previous = parse(existing)
+        guard !previous.isEmpty else { return (captured, false) }
+        return (previous, true)
+    }
+
     static func validURLs(_ candidates: [String]) -> [String] {
         var seen = Set<String>()
         return candidates.filter { candidate in

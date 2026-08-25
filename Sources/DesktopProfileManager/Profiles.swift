@@ -106,11 +106,11 @@ enum Profiles {
     /// Speichert ein Profil mit den gewählten Inhalten. Gibt (count, path) zurück.
     @discardableResult
     static func save(_ name: String, appExclusions: [String], options: SaveOptions,
-                     overwrite: Bool = false) -> (count: Int, url: URL?, error: String?) {
+                     overwrite: Bool = false) -> (count: Int, url: URL?, error: String?, preservedBrowserTabs: Bool) {
         let positions = options.withPositions ? DesktopIcons.getPositions() : [:]
         let hidden = options.withHidden ? DesktopIcons.getHiddenItems() : []
         let wallpaper = options.withWallpaper ? Wallpaper.get() : []
-        let browserTabs = options.withBrowserTabs ? BrowserTabs.capture() : [:]
+        let capturedBrowserTabs = options.withBrowserTabs ? BrowserTabs.capture() : [:]
         let displayLayout = Displays.getLayout().map { ["x": $0.x, "y": $0.y, "w": $0.w, "h": $0.h] }
         let systemState = SystemState.capture(keys: options.systemStateKeys)
 
@@ -127,16 +127,20 @@ enum Profiles {
         }
 
         if positions.isEmpty && hidden.isEmpty && wallpaper.isEmpty && apps.isEmpty &&
-            browserTabs.isEmpty && systemState.isEmpty {
-            return (0, nil, L("Keine Daten zum Speichern gefunden", "No data found to save"))
+            capturedBrowserTabs.isEmpty && systemState.isEmpty {
+            return (0, nil, L("Keine Daten zum Speichern gefunden", "No data found to save"), false)
         }
         guard let url = profilePath(name) else {
             return (0, nil, L("Ungültiger Profilname. Erlaubt sind Buchstaben, Zahlen, Leerzeichen, - und _.",
-                              "Invalid profile name. Only letters, numbers, spaces, - and _ are allowed."))
+                              "Invalid profile name. Only letters, numbers, spaces, - and _ are allowed."), false)
         }
         if !overwrite && FileManager.default.fileExists(atPath: url.path) {
-            return (0, nil, L("Ein Profil '\(name)' existiert bereits.", "A profile '\(name)' already exists."))
+            return (0, nil, L("Ein Profil '\(name)' existiert bereits.", "A profile '\(name)' already exists."), false)
         }
+        let savedTabs = BrowserTabs.tabsForSave(
+            captured: capturedBrowserTabs,
+            existing: overwrite ? load(name)?["browser_tabs"] : nil,
+            captureRequested: options.withBrowserTabs)
 
         var positionsObj: [String: [String: Int]] = [:]
         for (k, v) in positions { positionsObj[k] = ["x": v.x, "y": v.y] }
@@ -155,7 +159,7 @@ enum Profiles {
             "hidden": hidden,
             "wallpaper": wallpaper,
             "apps": appsObj,
-            "browser_tabs": browserTabs,
+            "browser_tabs": savedTabs.tabs,
             "system_state": systemState,
             "display_layout": displayLayout,
             "settings": [
@@ -176,9 +180,9 @@ enum Profiles {
         ]
         do {
             try atomicWrite(data, to: url)
-            return (positions.count + hidden.count, url, nil)
+            return (positions.count + hidden.count, url, nil, savedTabs.preserved)
         } catch {
-            return (0, nil, error.localizedDescription)
+            return (0, nil, error.localizedDescription, false)
         }
     }
 
@@ -223,7 +227,11 @@ enum Profiles {
 
         // Systemzustand neu erfassen, falls Optionen gewählt
         data["system_state"] = SystemState.capture(keys: options.systemStateKeys)
-        data["browser_tabs"] = options.withBrowserTabs ? BrowserTabs.capture() : [:]
+        let capturedBrowserTabs = options.withBrowserTabs ? BrowserTabs.capture() : [:]
+        let savedTabs = BrowserTabs.tabsForSave(captured: capturedBrowserTabs,
+                                                existing: data["browser_tabs"],
+                                                captureRequested: options.withBrowserTabs)
+        data["browser_tabs"] = savedTabs.tabs
 
         data["settings"] = [
             "capture_positions": options.withPositions,
