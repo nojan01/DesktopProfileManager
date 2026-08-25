@@ -5,6 +5,10 @@ import Foundation
 /// Firefox stellt keine verlässliche öffentliche Schnittstelle zum Auslesen
 /// vorhandener Tabs bereit und wird deshalb bewusst nicht erfasst.
 enum BrowserTabs {
+    /// Browser-Automatisierung darf den gesamten Profilwechsel nicht bis zum
+    /// allgemeinen 30-Sekunden-Standardtimeout aufhalten.
+    static let restoreTimeout: TimeInterval = 5
+
     struct RestoreOutcome {
         let openedTabs: Int
         let failedBrowsers: [String]
@@ -59,7 +63,7 @@ enum BrowserTabs {
 
             let script = restoreScript(browserName: browser.name,
                                        urls: valid)
-            if Shell.runAppleScript(script) != nil {
+            if Shell.runAppleScript(script, timeout: restoreTimeout) != nil {
                 openedTabs += valid.count
             } else {
                 failedBrowsers.append(browser.name)

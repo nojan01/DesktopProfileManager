@@ -59,6 +59,10 @@ final class DesktopProfileManagerTests: XCTestCase {
         ])
     }
 
+    func testBrowserTabRestoreUsesShortTimeout() {
+        XCTAssertEqual(BrowserTabs.restoreTimeout, 5)
+    }
+
     func testBrowserTabsParseSkipsUnsupportedValues() {
         let parsed = BrowserTabs.parse([
             "com.apple.Safari": ["https://example.com", "file:///Users/nojan/index.html", "invalid"],

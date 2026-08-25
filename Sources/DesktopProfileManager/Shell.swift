@@ -60,8 +60,8 @@ enum Shell {
 
     /// Führt ein AppleScript via `osascript` aus. Gibt nil bei Fehler zurück.
     @discardableResult
-    static func runAppleScript(_ script: String) -> String? {
-        let result = run("/usr/bin/osascript", ["-e", script])
+    static func runAppleScript(_ script: String, timeout: TimeInterval = 30) -> String? {
+        let result = run("/usr/bin/osascript", ["-e", script], timeout: timeout)
         if result.code != 0 {
             return nil
         }
