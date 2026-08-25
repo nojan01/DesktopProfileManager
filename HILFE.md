@@ -365,8 +365,8 @@ Fenster mit folgenden Feldern:
   - **Apps**
   - **Browser-Tabs (Safari, Google Chrome, Microsoft Edge)** – Speichert alle geöffneten Web- und
     lokalen Datei-Tabs (`http(s)://`, `file://`) der aktuell laufenden unterstützten
-    Browser. Beim Wiederherstellen öffnet die App die gespeicherten Tabs; bereits geöffnete
-    Browser-Tabs bleiben dabei erhalten. Unterstützt werden Safari,
+    Browser. Beim Wiederherstellen ersetzt die App alle vorhandenen Tabs und Fenster desselben
+    Browsers durch die gespeicherten Profil-Tabs. Unterstützt werden Safari,
     Google Chrome und Microsoft Edge. Firefox wird nicht unterstützt, weil seine Tabs ohne
     Browser-Erweiterung nicht zuverlässig gelesen oder geöffnet werden können. Datei-URLs werden
     nur für lokale, absolute Pfade erfasst.
