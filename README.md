@@ -15,7 +15,7 @@ Dieses Projekt steht unter der [MIT-Lizenz](LICENSE). Copyright © 2026 Norbert 
 - **Emoji-Symbole** – Jedem Profil ein eigenes Emoji als Erkennungssymbol zuweisen
 - **Desktop-Hintergrund** – Hintergrundbild pro Profil speichern & wiederherstellen
 - **Apps & Fenster** – Laufende Apps inkl. Fensterposition/-größe sichern und beim Wiederherstellen starten (optional andere Apps ausblenden/beenden)
-- **Browser-Tabs** – Web- und lokale Datei-Tabs (`http(s)://`, `file://`) aus Safari, Chrome und Edge pro Profil sichern und beim Wiederherstellen als alleinigen Tab-Satz des Profils öffnen
+- **Browser-Tabs** – Web- und lokale Datei-Tabs (`http(s)://`, `file://`) aus Safari, Google Chrome und Microsoft Edge pro Profil sichern und beim Wiederherstellen als alleinigen Tab-Satz des Profils öffnen. Firefox wird nicht unterstützt.
 - **Systemzustand** – Dark Mode, Lautstärke, Helligkeit, Nicht stören, Dock und Desktop-Ansicht pro Profil sichern
 - **Icons verstecken** – Einzelne Desktop-Dateien ein-/ausblenden
 - **Tastenkombinationen** – Die ersten 9 Profile per Hotkey laden (Modifier wählbar: ⌘⌃, ⌃, ⌥⌘, ⌃⇧)
@@ -28,8 +28,8 @@ Dieses Projekt steht unter der [MIT-Lizenz](LICENSE). Copyright © 2026 Norbert 
 > **Hinweis:** Für das Speichern/Wiederherstellen von Fensterpositionen und für
 > Tastenkombinationen muss Desktop Profile Manager in den Systemeinstellungen unter
 > *Datenschutz & Sicherheit › Bedienungshilfen* freigegeben sein.
-> Browser-Tabs benötigen zusätzlich die von macOS abgefragte Automatisierungsfreigabe; Firefox-Tabs
-> werden ohne Browser-Erweiterung nicht automatisch erfasst.
+> Unterstützt werden Safari, Google Chrome und Microsoft Edge. Browser-Tabs benötigen zusätzlich die von
+> macOS abgefragte Automatisierungsfreigabe. Firefox wird ohne Browser-Erweiterung nicht unterstützt.
 > Apps werden nur bei manuellem Restore und beim Login gestartet – nicht bei jedem Auto-Restore.
 
 ## Installation

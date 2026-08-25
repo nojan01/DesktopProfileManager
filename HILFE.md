@@ -69,6 +69,10 @@ Für die volle Funktion benötigt die App eine Berechtigung:
   Safari, Google Chrome oder Microsoft Edge. Sie wird benötigt, um Tabs zu lesen und
   wieder zu öffnen.
 
+**Unterstützte Browser:** Safari, Google Chrome und Microsoft Edge. Firefox wird nicht
+unterstützt, weil der Browser keine verlässliche öffentliche AppleScript-Schnittstelle
+zum Speichern und Wiederherstellen von Tabs bereitstellt.
+
 Beim ersten Start, der diese Funktionen nutzt, fragt macOS automatisch nach der
 Erlaubnis. Ohne diese Berechtigung funktionieren Icon-Positionen, Hintergrundbild
 und App-Start weiterhin – nur die exakte Fensterwiederherstellung nicht.
@@ -359,11 +363,13 @@ Fenster mit folgenden Feldern:
   - **Versteckte Icons**
   - **Hintergrundbild**
   - **Apps**
-  - **Browser-Tabs (Safari, Chrome, Edge)** – Speichert alle geöffneten Web- und
+  - **Browser-Tabs (Safari, Google Chrome, Microsoft Edge)** – Speichert alle geöffneten Web- und
     lokalen Datei-Tabs (`http(s)://`, `file://`) der aktuell laufenden unterstützten
     Browser. Beim Wiederherstellen öffnet die App ein neues Profilfenster mit genau diesen
-    Tabs und schließt danach ältere Fenster desselben Browsers. Firefox-Tabs können ohne Browser-Erweiterung nicht zuverlässig
-    ausgelesen werden. Datei-URLs werden nur für lokale, absolute Pfade erfasst.
+    Tabs und schließt danach ältere Fenster desselben Browsers. Unterstützt werden Safari,
+    Google Chrome und Microsoft Edge. Firefox wird nicht unterstützt, weil seine Tabs ohne
+    Browser-Erweiterung nicht zuverlässig gelesen oder geöffnet werden können. Datei-URLs werden
+    nur für lokale, absolute Pfade erfasst.
 - **Systemzustand** – optionale Schalter wie Dark Mode, Lautstärke, Helligkeit,
   „Nicht stören", Dock und Desktop-Ansicht.
 - **App-Liste** – Auswahl, welche der laufenden Apps zum Profil gehören sollen

@@ -80,6 +80,9 @@ show/hide apps.</p>
 wallpaper, and app launching still work – only exact window restoration does not.</p>
 <p>For browser tabs, macOS may additionally request <strong>Automation</strong> permission for Safari,
 Google Chrome, or Microsoft Edge. This permission is needed to read and reopen tabs.</p>
+<p><strong>Supported browsers:</strong> Safari, Google Chrome, and Microsoft Edge. <strong>Firefox</strong>
+is not supported because it does not provide a reliable public AppleScript interface for saving
+and restoring tabs.</p>
 
 <h2 id="menu">The menu at a glance</h2>
 <p>From top to bottom the menu consists of:</p>
@@ -243,11 +246,12 @@ interval.</p>
   <li><strong>Wi-Fi name (optional)</strong> – the profile is loaded automatically when connecting to this
     network (if auto switch is active).</li>
   <li><strong>What to save/restore?</strong> – icon positions, hidden icons, wallpaper, apps, and browser tabs.</li>
-  <li><strong>Browser tabs (Safari, Chrome, Edge)</strong> – Saves all open web and local file tabs
+  <li><strong>Browser tabs (Safari, Google Chrome, Microsoft Edge)</strong> – Saves all open web and local file tabs
     (<code>http(s)://</code>, <code>file://</code>) from currently
     running supported browsers. On restore the app opens a new profile window with exactly these tabs,
-    then closes older windows of the same browser. <strong>Firefox</strong>
-    tabs cannot be read reliably without a browser extension. URLs can contain
+    then closes older windows of the same browser. Supported browsers are Safari, Google Chrome,
+    and Microsoft Edge. <strong>Firefox</strong> is not supported because its tabs cannot be read or
+    reopened reliably without a browser extension. URLs can contain
     search terms, internal addresses, or parameters and are stored in the profile. File URLs are captured
     only for local, absolute paths.</li>
   <li><strong>System state</strong> – dark mode, volume, brightness, Do Not Disturb, Dock, desktop view.</li>
