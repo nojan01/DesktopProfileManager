@@ -2,6 +2,10 @@
 
 Native **Swift/AppKit** macOS Menu Bar App zum Speichern und Wiederherstellen kompletter Arbeitsumgebungen – Desktop-Icon-Positionen, Hintergrund, Apps und Systemzustand.
 
+[![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-yellow.svg)](LICENSE)
+
+Dieses Projekt steht unter der [MIT-Lizenz](LICENSE). Copyright © 2026 Norbert Jander.
+
 ## Features
 
 - **Profile speichern** – Desktop-Icon-Positionen als benannte Profile sichern
@@ -11,7 +15,7 @@ Native **Swift/AppKit** macOS Menu Bar App zum Speichern und Wiederherstellen ko
 - **Emoji-Symbole** – Jedem Profil ein eigenes Emoji als Erkennungssymbol zuweisen
 - **Desktop-Hintergrund** – Hintergrundbild pro Profil speichern & wiederherstellen
 - **Apps & Fenster** – Laufende Apps inkl. Fensterposition/-größe sichern und beim Wiederherstellen starten (optional andere Apps ausblenden/beenden)
-- **Browser-Tabs** – Web- und lokale Datei-Tabs (`http(s)://`, `file://`) aus Safari, Chrome und Edge pro Profil sichern und beim Wiederherstellen exakt setzen
+- **Browser-Tabs** – Web- und lokale Datei-Tabs (`http(s)://`, `file://`) aus Safari, Chrome und Edge pro Profil sichern und beim Wiederherstellen öffnen
 - **Systemzustand** – Dark Mode, Lautstärke, Helligkeit, Nicht stören, Dock und Desktop-Ansicht pro Profil sichern
 - **Icons verstecken** – Einzelne Desktop-Dateien ein-/ausblenden
 - **Tastenkombinationen** – Die ersten 9 Profile per Hotkey laden (Modifier wählbar: ⌘⌃, ⌃, ⌥⌘, ⌃⇧)
@@ -79,8 +83,12 @@ Profile und Einstellungen liegen unter:
 - macOS LaunchAgent für Autostart
 - Ziel-OS: macOS 12+
 
-## Lizenz
+## Lizenz / License
 
-MIT License – Copyright (c) 2026 Norbert Jander
+Dieses Projekt ist unter der [MIT-Lizenz](LICENSE) veröffentlicht. Der vollständige, verbindliche
+englische Lizenztext befindet sich in [LICENSE](LICENSE).
+
+This project is released under the [MIT License](LICENSE). The complete, authoritative English
+license text is available in [LICENSE](LICENSE).
 
 Erstellt nach einer Idee von Norbert Jander mit Hilfe eines KI-Agents.
