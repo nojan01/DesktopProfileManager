@@ -79,12 +79,13 @@ final class VisibilityWindow: NSObject, NSWindowDelegate {
         let changes = checkboxes.map { (name: $0.name, visible: $0.button.state == .on) }
         window?.close()
         DispatchQueue.global().async {
-            for change in changes {
-                if change.visible { DesktopIcons.unhideItem(change.name) }
-                else { DesktopIcons.hideItem(change.name) }
-            }
+            let result = DesktopIcons.applyVisibility(
+                changes.map { (name: $0.name, hidden: !$0.visible) })
             DispatchQueue.main.async {
-                Notifier.show(L("Sichtbarkeit geändert", "Visibility changed"), "")
+                let detail = result.failed == 0 ? "" :
+                    L("\(result.failed) Icon(s) konnten nicht geändert werden.",
+                      "\(result.failed) icon(s) could not be changed.")
+                Notifier.show(L("Sichtbarkeit geändert", "Visibility changed"), detail)
             }
         }
     }

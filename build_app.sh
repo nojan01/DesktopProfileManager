@@ -7,7 +7,19 @@ cd "$SCRIPT_DIR"
 
 APP_NAME="Desktop Profile Manager"
 BUNDLE_ID="com.desktopprofilemanager.swift"
-VERSION="1.2.0"
+VERSION="${VERSION:-1.5.0}"
+ENTITLEMENTS_PATH="$SCRIPT_DIR/Resources/DesktopProfileManager.entitlements"
+
+# Optional überschreibbar, z. B. für ein anderes Team oder CI. Ohne explizite
+# Angabe wird die erste verfügbare Developer-ID-Application-Identität verwendet.
+if [ -z "${SIGNING_IDENTITY:-}" ]; then
+    SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | \
+        sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -n 1)"
+fi
+if [ -z "$SIGNING_IDENTITY" ]; then
+    echo "❌ Keine 'Developer ID Application'-Signaturidentität gefunden."
+    exit 1
+fi
 
 echo "🔨 Baue Release-Binary..."
 swift build -c release
@@ -63,6 +75,11 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
+
+echo "✍️  Signiere App mit: $SIGNING_IDENTITY"
+codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp \
+    --entitlements "$ENTITLEMENTS_PATH" "$APP_DIR"
+codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 
 echo "✅ Fertig: $APP_DIR"
 echo "   Start:  open \"$APP_DIR\""

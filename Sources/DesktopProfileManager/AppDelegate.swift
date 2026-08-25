@@ -1,4 +1,5 @@
 import AppKit
+import Foundation
 
 /// Menüleisten-App: NSStatusItem mit Profil-Schnellauswahl und Einstellungen.
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -13,6 +14,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var appSelectionWindow: AppSelectionWindow?
 
     private var autoRestoreTimer: Timer?
+    /// Wiederherstellungen dürfen nicht parallel laufen: parallele AppleScripts
+    /// könnten sonst Tabs verschiedener Profile in denselben Browser schreiben.
+    private let restoreQueue = DispatchQueue(label: "com.desktopprofilemanager.restore")
 
     private let githubRepo = "nojan01/IconGuard"
     private let launchDelayOptions: [Double] = [0, 0.5, 1, 1.5, 2, 3, 5]
@@ -490,7 +494,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let quitOthers = config.get("quit_other_apps", false)
         let delay = config.get("app_launch_delay", 1.5)
 
-        DispatchQueue.global().async {
+        restoreQueue.async {
             let r = Profiles.restore(name, includeWallpaper: incWallpaper, includeApps: incApps,
                                      hideOthers: hideOthers, quitOthers: quitOthers, launchDelay: delay,
                                      iconsOnly: iconsOnly)
@@ -523,24 +527,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             options.withHidden = saved["capture_hidden"] as? Bool ?? true
             options.withWallpaper = saved["capture_wallpaper"] as? Bool ?? true
             options.withApps = saved["capture_apps"] as? Bool ?? true
+            options.withBrowserTabs = saved["capture_browser_tabs"] as? Bool ?? false
             options.includedApps = saved["included_apps"] as? [String]
             options.systemStateKeys = saved["system_state_keys"] as? [String] ?? []
             options.emoji = saved["emoji"] as? String ?? ""
             options.wifiSSID = saved["wifi_ssid"] as? String ?? ""
         }
-        doSaveWithOptions(name, options: options)
+        doSaveWithOptions(name, options: options, overwrite: true)
     }
 
-    func doSaveWithOptions(_ name: String, options: Profiles.SaveOptions) {
+    func doSaveWithOptions(_ name: String, options: Profiles.SaveOptions, overwrite: Bool = false) {
         let exclusions = config.get("app_exclusions", [String]())
         DispatchQueue.global().async {
-            let r = Profiles.save(name, appExclusions: exclusions, options: options)
+            let r = Profiles.save(name, appExclusions: exclusions, options: options, overwrite: overwrite)
             DispatchQueue.main.async {
                 if let error = r.error {
                     Notifier.show(L("Fehler", "Error"), error)
                 } else {
-                    Notifier.show(L("Profil '\(name)' gespeichert", "Profile '\(name)' saved"),
-                                  L("\(r.count) Icons gesichert", "\(r.count) icons saved"))
+                    var message = L("\(r.count) Icons gesichert", "\(r.count) icons saved")
+                    if r.preservedBrowserTabs {
+                        message += "\n" + L("Safari lieferte keine Tabs; die zuvor gespeicherten Tabs wurden beibehalten.",
+                                              "Safari did not provide tabs; the previously saved tabs were kept.")
+                    }
+                    Notifier.show(L("Profil '\(name)' gespeichert", "Profile '\(name)' saved"), message)
                 }
                 self.buildMenu()
             }
@@ -556,9 +565,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if let error = error {
                     Notifier.show(L("Fehler", "Error"), error)
                 } else {
-                    // Verweise in der Konfiguration mitziehen
-                    if oldName != newName, self.config.get("auto_restore_profile", "") == oldName {
-                        self.config.set("auto_restore_profile", newName)
+                    // Verweise in der Konfiguration mitziehen.
+                    if oldName != newName {
+                        if self.config.get("auto_restore_profile", "") == oldName {
+                            self.config.set("auto_restore_profile", newName)
+                        }
+                        var rules = self.config.get("auto_switch_rules", [[String: Any]]())
+                        for index in rules.indices where rules[index]["profile"] as? String == oldName {
+                            rules[index]["profile"] = newName
+                        }
+                        self.config.set("auto_switch_rules", rules)
                         self.config.save()
                     }
                     if self.activeProfile == oldName { self.activeProfile = newName }
@@ -634,8 +650,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func onToggleAutostart() {
-        if LaunchAgentManager.isEnabled() { LaunchAgentManager.disable() }
-        else { LaunchAgentManager.enable() }
+        let error: String?
+        if LaunchAgentManager.isEnabled() {
+            error = LaunchAgentManager.disable()
+        } else {
+            error = LaunchAgentManager.enable()
+        }
+        if let error = error {
+            Notifier.show(L("Autostart konnte nicht geändert werden", "Could not change start at login"), error)
+        }
         buildMenu()
     }
 
@@ -757,7 +780,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Namen bei Konflikt durchnummerieren
-        let base = (obj["profile"] as? String) ?? src.deletingPathExtension().lastPathComponent
+        let rawBase = (obj["profile"] as? String) ?? src.deletingPathExtension().lastPathComponent
+        guard let base = Profiles.importName(rawBase) else {
+            Notifier.show(L("Fehler", "Error"),
+                          L("Die Datei enthält keinen gültigen Profilnamen.",
+                            "The file does not contain a valid profile name."))
+            return
+        }
         var name = base
         var counter = 2
         while let path = Profiles.profilePath(name), FileManager.default.fileExists(atPath: path.path) {
@@ -776,41 +805,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func onCheckUpdate() {
-        DispatchQueue.global().async {
-            let api = "https://api.github.com/repos/\(self.githubRepo)/releases/latest"
-            let (out, code) = Shell.run("/usr/bin/curl",
-                ["-sSL", "--max-time", "15",
-                 "-H", "Accept: application/vnd.github+json",
-                 "-H", "User-Agent: DesktopProfileManager", api], timeout: 20)
-            var latest = ""
-            if code == 0, let data = out.data(using: .utf8),
-               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                latest = (obj["tag_name"] as? String ?? "")
-                    .trimmingCharacters(in: .whitespaces)
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
-            }
-            DispatchQueue.main.async { self.showUpdateResult(latest) }
+        UpdateManager.fetchLatest(repo: githubRepo) { result in
+            DispatchQueue.main.async { self.showUpdateResult(result) }
         }
     }
 
-    private func showUpdateResult(_ latest: String) {
+    private func showUpdateResult(_ result: Result<UpdateManager.Release, Error>) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        if latest.isEmpty {
+        guard case .success(let release) = result else {
             alert.messageText = L("Update-Prüfung fehlgeschlagen", "Update check failed")
             alert.informativeText = L("Die Update-Informationen konnten nicht abgerufen werden.",
                                       "Could not fetch update information.")
             alert.runModal()
-        } else if versionGreater(latest, than: Paths.appVersion) {
+            NSApp.setActivationPolicy(.accessory)
+            return
+        }
+
+        if versionGreater(release.version, than: Paths.appVersion) {
+            let canDownload = release.downloadURL != nil && release.assetName != nil
             alert.messageText = L("Update verfügbar", "Update available")
-            alert.informativeText = L("Version v\(latest) ist verfügbar (installiert: v\(Paths.appVersion)).",
-                                      "Version v\(latest) is available (installed: v\(Paths.appVersion)).")
-            alert.addButton(withTitle: L("Releases öffnen", "Open releases"))
+            alert.informativeText = canDownload
+                ? L("Version v\(release.version) ist verfügbar (installiert: v\(Paths.appVersion)). Das DMG wird nach der Bestätigung geladen und geöffnet.",
+                    "Version v\(release.version) is available (installed: v\(Paths.appVersion)). The DMG will be downloaded and opened after confirmation.")
+                : L("Version v\(release.version) ist verfügbar (installiert: v\(Paths.appVersion)). Für dieses Release wurde keine DMG-Datei gefunden.",
+                    "Version v\(release.version) is available (installed: v\(Paths.appVersion)). No DMG file was found for this release.")
+            alert.addButton(withTitle: L(canDownload ? "Laden und öffnen" : "Releases öffnen",
+                                         canDownload ? "Download and open" : "Open releases"))
             alert.addButton(withTitle: L("Abbrechen", "Cancel"))
-            if alert.runModal() == .alertFirstButtonReturn,
-               let url = URL(string: "https://github.com/\(githubRepo)/releases") {
-                NSWorkspace.shared.open(url)
+            if alert.runModal() == .alertFirstButtonReturn {
+                if canDownload {
+                    startUpdateDownload(release)
+                } else if let url = URL(string: "https://github.com/\(githubRepo)/releases") {
+                    NSWorkspace.shared.open(url)
+                }
             }
         } else {
             alert.messageText = L("Keine Updates", "No updates")
@@ -819,6 +848,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             alert.runModal()
         }
         NSApp.setActivationPolicy(.accessory)
+    }
+
+    private func startUpdateDownload(_ release: UpdateManager.Release) {
+        Notifier.show(L("Update-Download gestartet", "Update download started"),
+                      L("Das DMG wird geladen und danach geöffnet.", "The DMG will be downloaded and then opened."))
+        UpdateManager.downloadDMG(release) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let file):
+                    NSWorkspace.shared.open(file)
+                    Notifier.show(L("Update bereit", "Update ready"),
+                                  L("Die DMG wurde geöffnet. Ziehe die App nach „Programme“ und starte sie anschließend neu.",
+                                    "The DMG was opened. Drag the app to Applications, then restart it."))
+                case .failure:
+                    Notifier.show(L("Update-Download fehlgeschlagen", "Update download failed"),
+                                  L("Das DMG konnte nicht heruntergeladen werden. Bitte versuche es später erneut.",
+                                    "The DMG could not be downloaded. Please try again later."))
+                }
+            }
+        }
     }
 
     private func versionGreater(_ a: String, than b: String) -> Bool {
@@ -904,10 +953,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             License: MIT
             """)
+        alert.addButton(withTitle: L("MIT-Lizenz anzeigen", "Show MIT License"))
+        alert.addButton(withTitle: L("Schließen", "Close"))
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-        alert.runModal()
+        if alert.runModal() == .alertFirstButtonReturn {
+            showMITLicense()
+        }
         NSApp.setActivationPolicy(.accessory)
+    }
+
+    private func showMITLicense() {
+        let alert = NSAlert()
+        alert.messageText = L("MIT-Lizenz", "MIT License")
+        alert.informativeText = L("Vollständiger Lizenztext", "Full license text")
+
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 560, height: 320))
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.borderType = .bezelBorder
+
+        let textView = NSTextView(frame: scrollView.bounds)
+        textView.string = AppLicense.mitText(for: Localization.current)
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.drawsBackground = false
+        textView.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        textView.textContainerInset = NSSize(width: 8, height: 8)
+        textView.minSize = NSSize(width: 0, height: 0)
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude,
+                                  height: CGFloat.greatestFiniteMagnitude)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        textView.textContainer?.widthTracksTextView = true
+        scrollView.documentView = textView
+
+        alert.accessoryView = scrollView
+        alert.addButton(withTitle: L("Schließen", "Close"))
+        alert.runModal()
     }
 
     @objc func onQuit() {
