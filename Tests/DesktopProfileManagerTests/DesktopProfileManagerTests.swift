@@ -70,12 +70,14 @@ final class DesktopProfileManagerTests: XCTestCase {
     func testBrowserTabsReplaceExistingWindowsAndTabs() {
         let script = BrowserTabs.restoreScript(browserName: "Safari",
                                                urls: ["file:///Users/nojan/index.html", "https://example.com"])
+        XCTAssertTrue(script.contains("delay 0.5"))
+        XCTAssertTrue(script.contains("set URL of tab 1 to \"file:///Users/nojan/index.html\""))
+        XCTAssertTrue(script.contains("make new tab at end of tabs with properties {URL:\"https://example.com\"}"))
         XCTAssertTrue(script.contains("repeat while (count of windows) > 1"))
         XCTAssertTrue(script.contains("close window 2"))
         XCTAssertTrue(script.contains("repeat while (count of tabs) > 1"))
         XCTAssertTrue(script.contains("close tab 2"))
-        XCTAssertTrue(script.contains("set URL of tab 1 to \"file:///Users/nojan/index.html\""))
-        XCTAssertTrue(script.contains("make new tab at end of tabs with properties {URL:\"https://example.com\"}"))
+        XCTAssertGreaterThanOrEqual(script.components(separatedBy: "on error").count, 3)
     }
 
     func testUpdateReleaseUsesDMGAssetAndIgnoresOtherAssets() throws {

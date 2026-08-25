@@ -116,18 +116,30 @@ enum BrowserTabs {
         return """
         tell application "\(browserName)"
             activate
+            delay 0.5
             if (count of windows) is 0 then
                 make new window
             end if
-            repeat while (count of windows) > 1
-                close window 2
-            end repeat
             tell front window
-                repeat while (count of tabs) > 1
-                    close tab 2
-                end repeat
+                -- Erst den Profilinhalt setzen. Das Aufräumen alter Fenster darf
+                -- eine Wiederherstellung nicht verhindern, falls Safari noch
+                -- seine Sitzung wiederherstellt oder ein Fenster nicht schließt.
                 set URL of tab 1 to "\(Shell.esc(firstURL))"
+                repeat while (count of tabs) > 1
+                    try
+                        close tab 2
+                    on error
+                        exit repeat
+                    end try
+                end repeat
         \(remainingTabCommands)
+            end tell
+            repeat while (count of windows) > 1
+                try
+                    close window 2
+                on error
+                    exit repeat
+                end try
             end tell
         end tell
         """
