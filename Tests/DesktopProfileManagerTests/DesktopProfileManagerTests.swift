@@ -90,20 +90,15 @@ final class DesktopProfileManagerTests: XCTestCase {
         XCTAssertFalse(commands.contains("tabs of front window"))
     }
 
-    func testBrowserTabsCreateProfileWindowAndCloseOlderWindows() {
+    func testBrowserTabsReuseKnownStartPageInsteadOfOpeningAnotherTab() {
         let script = BrowserTabs.restoreScript(browserName: "Safari",
                                                urls: ["file:///Users/nojan/index.html", "https://example.com"])
-        XCTAssertTrue(script.contains("make new window"))
-        XCTAssertTrue(script.contains("tell front window"))
+        XCTAssertTrue(script.contains("favorites://"))
         XCTAssertTrue(script.contains("set URL of tab 1 to \"file:///Users/nojan/index.html\""))
         XCTAssertTrue(script.contains("make new tab at end of tabs with properties {URL:\"https://example.com\"}"))
+        XCTAssertFalse(script.contains("close tab"))
         XCTAssertFalse(script.contains("close window"))
-
-        let cleanup = BrowserTabs.cleanupScript(browserName: "Safari")
-        XCTAssertTrue(cleanup.contains("set profileWindowID to id of front window"))
-        XCTAssertTrue(cleanup.contains("(id of window 1) is profileWindowID"))
-        XCTAssertTrue(cleanup.contains("close window 1"))
-        XCTAssertTrue(cleanup.contains("close window 2"))
+        XCTAssertTrue(script.contains("end if"))
     }
 
     func testUpdateReleaseUsesDMGAssetAndIgnoresOtherAssets() throws {

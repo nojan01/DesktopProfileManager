@@ -46,9 +46,8 @@ enum BrowserTabs {
         return result
     }
 
-    /// Stellt jeden gespeicherten Browser in einem eigenen Profilfenster wieder her.
-    /// Erst wenn alle Profil-Tabs erzeugt wurden, werden ältere Fenster geschlossen.
-    /// Damit bleibt beim Profilwechsel ausschließlich der gespeicherte Satz an Tabs.
+    /// Öffnet die gespeicherten URLs als neue Tabs. Die Browser werden dabei bei
+    /// Bedarf gestartet; vorhandene Fenster und Tabs bleiben unverändert.
     @discardableResult
     static func restore(_ savedTabs: [String: [String]]) -> RestoreOutcome {
         var openedTabs = 0
@@ -59,14 +58,10 @@ enum BrowserTabs {
             let valid = validURLs(urls)
             guard !valid.isEmpty else { continue }
 
-            let creationScript = restoreScript(browserName: browser.name,
-                                               urls: valid)
-            if Shell.runAppleScript(creationScript) != nil {
+            let script = restoreScript(browserName: browser.name,
+                                       urls: valid)
+            if Shell.runAppleScript(script) != nil {
                 openedTabs += valid.count
-                // Das Bereinigen ist bewusst ein zweites, unabhängiges Script:
-                // Ein Fehler beim Schließen alter Fenster darf niemals das zuvor
-                // erfolgreiche Öffnen der Profil-Tabs rückgängig machen.
-                _ = Shell.runAppleScript(cleanupScript(browserName: browser.name))
             } else {
                 failedBrowsers.append(browser.name)
             }
@@ -124,46 +119,35 @@ enum BrowserTabs {
         }.joined(separator: "\n")
     }
 
-    /// Erstellt ein neues Browserfenster für das Profil und füllt es vollständig.
-    /// Das Schließen alter Fenster ist davon getrennt, damit es die Wiederherstellung
-    /// nicht blockieren kann.
+    /// Browser erzeugen beim Start häufig einen zusätzlichen leeren Startseiten-Tab.
+    /// Der Browser kann zuvor bereits durch die App-Wiederherstellung gestartet worden
+    /// sein. Daher wird nicht der Prozessstatus, sondern die Startseiten-URL geprüft.
+    /// Bereits vorhandene Nutzer-Tabs bleiben unverändert.
     static func restoreScript(browserName: String, urls: [String]) -> String {
         guard let firstURL = urls.first else { return "" }
+        let allTabCommands = tabCreationCommands(urls)
         let remainingTabCommands = tabCreationCommands(Array(urls.dropFirst()))
         return """
         tell application "\(browserName)"
             activate
-            make new window
+            if (count of windows) is 0 then
+                make new window
+            end if
             tell front window
+                set reuseStartPageTab to false
                 try
-                    set URL of tab 1 to "\(Shell.esc(firstURL))"
-                on error
-                    make new tab at end of tabs with properties {URL:"\(Shell.esc(firstURL))"}
-                end try
-        \(remainingTabCommands)
-            end tell
-        end tell
-        """
-    }
-
-    /// Behält das soeben erzeugte Vordergrundfenster und schließt nur ältere
-    /// Browserfenster. Fehler werden im aufrufenden Code absichtlich ignoriert,
-    /// weil die Profil-Tabs zu diesem Zeitpunkt bereits geöffnet sind.
-    static func cleanupScript(browserName: String) -> String {
-        """
-        tell application "\(browserName)"
-            set profileWindowID to id of front window
-            repeat while (count of windows) > 1
-                try
-                    if (id of window 1) is profileWindowID then
-                        close window 2
-                    else
-                        close window 1
+                    set firstTabURL to URL of tab 1
+                    if firstTabURL is in {"favorites://", "about:blank", "chrome://newtab/", "edge://newtab/", "safari://startpage", "safari://startpage/"} then
+                        set reuseStartPageTab to true
                     end if
-                on error
-                    exit repeat
                 end try
-            end repeat
+                if reuseStartPageTab then
+                    set URL of tab 1 to "\(Shell.esc(firstURL))"
+        \(remainingTabCommands)
+                else
+        \(allTabCommands)
+                end if
+            end tell
         end tell
         """
     }
