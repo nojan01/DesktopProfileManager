@@ -15,7 +15,7 @@ Dieses Projekt steht unter der [MIT-Lizenz](LICENSE). Copyright © 2026 Norbert 
 - **Emoji-Symbole** – Jedem Profil ein eigenes Emoji als Erkennungssymbol zuweisen
 - **Desktop-Hintergrund** – Hintergrundbild pro Profil speichern & wiederherstellen
 - **Apps & Fenster** – Laufende Apps inkl. Fensterposition/-größe sichern und beim Wiederherstellen starten (optional andere Apps ausblenden/beenden)
-- **Browser-Tabs** – Web- und lokale Datei-Tabs (`http(s)://`, `file://`) aus Safari, Google Chrome und Microsoft Edge pro Profil sichern und beim Wiederherstellen als einzigen Tab-Satz des Profils öffnen. Firefox wird nicht unterstützt.
+- **Browser-Tabs** – Web- und lokale Datei-Tabs (`http(s)://`, `file://`) sowie Browser-Fensterpositionen aus Safari, Google Chrome und Microsoft Edge pro Profil sichern. Beim Wiederherstellen wird der Browser regulär beendet und einmal mit dem gespeicherten Tab-Satz neu gestartet. Firefox wird nicht unterstützt.
 - **Systemzustand** – Dark Mode, Lautstärke, Helligkeit, Nicht stören, Dock und Desktop-Ansicht pro Profil sichern
 - **Icons verstecken** – Einzelne Desktop-Dateien ein-/ausblenden
 - **Tastenkombinationen** – Die ersten 9 Profile per Hotkey laden (Modifier wählbar: ⌘⌃, ⌃, ⌥⌘, ⌃⇧)
@@ -23,6 +23,7 @@ Dieses Projekt steht unter der [MIT-Lizenz](LICENSE). Copyright © 2026 Norbert 
 - **Auto-Restore** – Automatische Wiederherstellung in konfigurierbaren Intervallen (5–240 Min)
 - **Autostart** – Optionaler Start beim Login via macOS LaunchAgent
 - **Menüleisten-App** – Läuft unauffällig in der Menüleiste (kein Dock-Icon)
+- **Serielle Profilwechsel** – Während einer Wiederherstellung sind weitere Profilwechsel gesperrt, damit Browser- und Fensteraktionen nicht überlappen
 - **Mehrsprachig** – Deutsch/Englisch (folgt der Systemsprache, manuell umschaltbar)
 
 > **Hinweis:** Für das Speichern/Wiederherstellen von Fensterpositionen und für
@@ -35,8 +36,8 @@ Dieses Projekt steht unter der [MIT-Lizenz](LICENSE). Copyright © 2026 Norbert 
 ## Installation
 
 ### DMG (empfohlen)
-1. Das Script `build_dmg.sh` ausführen
-2. Die erstellte `DesktopProfileManager-Swift-1.5.1.dmg` öffnen
+1. Das aktuelle DMG unter [GitHub Releases](https://github.com/nojan01/DesktopProfileManager/releases/latest) herunterladen oder `build_dmg.sh` ausführen
+2. `DesktopProfileManager-Swift-1.5.8.dmg` öffnen
 3. App nach `/Programme` ziehen
 4. Aus Launchpad starten
 

@@ -70,8 +70,10 @@ enum Apps {
         return apps
     }
 
-    static func restoreWindows(_ apps: [AppInfo]) {
+    static func restoreWindows(_ apps: [AppInfo],
+                               shouldCancel: @escaping () -> Bool = { false }) {
         for app in apps {
+            if shouldCancel() { return }
             if app.windows.isEmpty { continue }
             let name = Shell.esc(app.name)
             var lines = ["tell application \"System Events\"", "  tell process \"\(name)\""]
@@ -83,7 +85,7 @@ enum Apps {
             }
             lines.append("  end tell")
             lines.append("end tell")
-            _ = Shell.runAppleScript(lines.joined(separator: "\n"))
+            _ = Shell.runAppleScript(lines.joined(separator: "\n"), timeout: 5)
         }
     }
 
@@ -103,11 +105,13 @@ enum Apps {
 
     /// Startet Apps gestaffelt und stellt ihre Fenster wieder her.
     @discardableResult
-    static func launch(_ apps: [AppInfo], staggerDelay: Double = 1.5) -> Int {
+    static func launch(_ apps: [AppInfo], staggerDelay: Double = 1.5,
+                       shouldCancel: @escaping () -> Bool = { false }) -> Int {
         var launched = 0
         let runningNames = Set(getRunning().map { $0.name })
         var toUnhide: [String] = []
         for app in apps {
+            if shouldCancel() { return launched }
             let alreadyRunning = runningNames.contains(app.name)
             // Bereits laufende Apps zusätzlich wieder einblenden (falls per
             // System Events ausgeblendet).
@@ -136,15 +140,28 @@ enum Apps {
             // sind sofort da und brauchen keine Wartezeit.
             if ok && !alreadyRunning {
                 launched += 1
-                Thread.sleep(forTimeInterval: staggerDelay)
+                if !cancellableDelay(staggerDelay, shouldCancel: shouldCancel) {
+                    return launched
+                }
             }
         }
+        if shouldCancel() { return launched }
         if !toUnhide.isEmpty { setVisible(toUnhide, true) }
         if apps.contains(where: { !$0.windows.isEmpty }) {
-            Thread.sleep(forTimeInterval: 3)
-            restoreWindows(apps)
+            if !cancellableDelay(3, shouldCancel: shouldCancel) { return launched }
+            restoreWindows(apps, shouldCancel: shouldCancel)
         }
         return launched
+    }
+
+    private static func cancellableDelay(_ duration: TimeInterval,
+                                         shouldCancel: @escaping () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(duration)
+        while Date() < deadline {
+            if shouldCancel() { return false }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return !shouldCancel()
     }
 
     @discardableResult
@@ -164,8 +181,27 @@ enum Apps {
             if ra.isHidden { continue }
             toHide.append(name)
         }
+        // Finder muss bei jedem Profil als Desktop-Dienst sichtbar sein, sonst
+        // verschwinden auch Laufwerksicons. Seine Fenster bleiben verborgen und
+        // Finder wird ausdrücklich nicht aktiviert. Er muss VOR den anderen Apps
+        // bereitstehen, damit macOS nicht die zuletzt ausgeblendete App automatisch
+        // wieder sichtbar macht.
+        _ = Shell.runAppleScript(finderDesktopOnlyScript(), timeout: 5)
         setVisible(toHide, false)
         return toHide.count
+    }
+
+    static func finderDesktopOnlyScript() -> String {
+        """
+        tell application "Finder"
+            repeat with finderWindow in windows
+                try
+                    set visible of finderWindow to false
+                end try
+            end repeat
+        end tell
+        tell application "System Events" to set visible of process "Finder" to true
+        """
     }
 
     @discardableResult

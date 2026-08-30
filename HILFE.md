@@ -365,11 +365,17 @@ Fenster mit folgenden Feldern:
   - **Apps**
   - **Browser-Tabs (Safari, Google Chrome, Microsoft Edge)** – Speichert alle geöffneten Web- und
     lokalen Datei-Tabs (`http(s)://`, `file://`) der aktuell laufenden unterstützten
-    Browser. Beim Wiederherstellen ersetzt die App alle vorhandenen Tabs und Fenster desselben
-    Browsers durch die gespeicherten Profil-Tabs. Unterstützt werden Safari,
+    Browser sowie Position und Größe des Browserfensters. Beim Wiederherstellen beendet die App
+    den betreffenden Browser regulär vollständig und startet ihn anschließend einmal mit allen
+    gespeicherten Profil-Tabs neu. Andere Apps werden vorher bereinigt, damit der neu gestartete
+    Browser nicht anschließend ausgeblendet oder beendet wird. Reagiert der Browser innerhalb von
+    15 Sekunden nicht auf das reguläre Beenden, wird der Wechsel mit einer Warnung abgebrochen;
+    ein verlustgefährdendes erzwungenes Beenden findet nicht statt. Unterstützt werden Safari,
     Google Chrome und Microsoft Edge. Firefox wird nicht unterstützt, weil seine Tabs ohne
     Browser-Erweiterung nicht zuverlässig gelesen oder geöffnet werden können. Datei-URLs werden
-    nur für lokale, absolute Pfade erfasst.
+    nur für lokale, absolute Pfade erfasst. Für Browser-Fensterpositionen ist die
+    Bedienungshilfen-Berechtigung erforderlich. Bereits vorhandene Profile müssen einmal
+    überschrieben werden, damit die Browserposition separat im Profil gespeichert wird.
 - **Systemzustand** – optionale Schalter wie Dark Mode, Lautstärke, Helligkeit,
   „Nicht stören", Dock und Desktop-Ansicht.
 - **App-Liste** – Auswahl, welche der laufenden Apps zum Profil gehören sollen
@@ -413,7 +419,19 @@ Sicherheit › Bedienungshilfen*.
 **Meine Browser-Tabs werden nicht gespeichert oder geöffnet.**
 Aktiviere im Profil *Browser-Tabs (Safari, Chrome, Edge)*, lasse den Browser beim
 Speichern geöffnet und aktiviere *Apps beim Wiederherstellen starten*. Erteile die
-angefragte Automatisierungsberechtigung. Firefox-Tabs werden nicht automatisch erfasst.
+angefragte Automatisierungsberechtigung. Beim Wiederherstellen wird der Browser regulär beendet
+und mit den Profil-Tabs neu gestartet. Verhindert ein Dialog, Download oder ungespeicherter Inhalt
+das Beenden länger als 15 Sekunden, bricht die App ohne erzwungenes Beenden ab. Firefox-Tabs
+werden nicht automatisch erfasst.
+
+**Die Position des Browserfensters wird nicht wiederhergestellt.**
+Erteile die Bedienungshilfen-Berechtigung und überschreibe das betreffende Profil einmal bei
+geöffnetem Browser. Erst dadurch erhalten ältere Profile die separat gespeicherte Browserposition.
+
+**Während eines Profilwechsels kann kein weiteres Profil gewählt werden.**
+Die Profilpunkte im Menü und im Widget bleiben deaktiviert, bis der laufende Wechsel vollständig
+abgeschlossen ist. Auch Kurzbefehle und automatische Regeln starten währenddessen keinen zweiten
+Wechsel. Dadurch können sich Browser-Beenden, Tab-Start und Fensterwiederherstellung nicht überlagern.
 
 **Das Widget ist nach einem Neustart wieder ausgeblendet.**
 Das sollte nicht passieren – die Sichtbarkeit wird dauerhaft gespeichert. Schalte das

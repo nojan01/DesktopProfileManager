@@ -116,6 +116,7 @@ final class ProfileWidget: NSObject, NSWindowDelegate {
             btn.tag = i
             btn.target = self
             btn.action = #selector(onProfileButton(_:))
+            btn.isEnabled = !app.isRestoreInProgress
             if compact {
                 btn.title = p.emoji.isEmpty ? String(p.name.prefix(1)).uppercased() : p.emoji
                 btn.font = .systemFont(ofSize: 42)

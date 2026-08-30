@@ -111,6 +111,7 @@ enum Profiles {
         let hidden = options.withHidden ? DesktopIcons.getHiddenItems() : []
         let wallpaper = options.withWallpaper ? Wallpaper.get() : []
         let capturedBrowserTabs = options.withBrowserTabs ? BrowserTabs.capture() : [:]
+        let capturedBrowserWindows = options.withBrowserTabs ? BrowserTabs.captureWindowPositions() : [:]
         let displayLayout = Displays.getLayout().map { ["x": $0.x, "y": $0.y, "w": $0.w, "h": $0.h] }
         let systemState = SystemState.capture(keys: options.systemStateKeys)
 
@@ -141,6 +142,10 @@ enum Profiles {
             captured: capturedBrowserTabs,
             existing: overwrite ? load(name)?["browser_tabs"] : nil,
             captureRequested: options.withBrowserTabs)
+        let savedBrowserWindows = BrowserTabs.windowPositionsForSave(
+            captured: capturedBrowserWindows,
+            existing: overwrite ? load(name)?["browser_windows"] : nil,
+            captureRequested: options.withBrowserTabs)
 
         var positionsObj: [String: [String: Int]] = [:]
         for (k, v) in positions { positionsObj[k] = ["x": v.x, "y": v.y] }
@@ -160,6 +165,7 @@ enum Profiles {
             "wallpaper": wallpaper,
             "apps": appsObj,
             "browser_tabs": savedTabs.tabs,
+            "browser_windows": savedBrowserWindows,
             "system_state": systemState,
             "display_layout": displayLayout,
             "settings": [
@@ -228,10 +234,15 @@ enum Profiles {
         // Systemzustand neu erfassen, falls Optionen gewählt
         data["system_state"] = SystemState.capture(keys: options.systemStateKeys)
         let capturedBrowserTabs = options.withBrowserTabs ? BrowserTabs.capture() : [:]
+        let capturedBrowserWindows = options.withBrowserTabs ? BrowserTabs.captureWindowPositions() : [:]
         let savedTabs = BrowserTabs.tabsForSave(captured: capturedBrowserTabs,
                                                 existing: data["browser_tabs"],
                                                 captureRequested: options.withBrowserTabs)
         data["browser_tabs"] = savedTabs.tabs
+        data["browser_windows"] = BrowserTabs.windowPositionsForSave(
+            captured: capturedBrowserWindows,
+            existing: data["browser_windows"],
+            captureRequested: options.withBrowserTabs)
 
         data["settings"] = [
             "capture_positions": options.withPositions,
@@ -267,7 +278,8 @@ enum Profiles {
 
     static func restore(_ name: String, includeWallpaper: Bool = true, includeApps: Bool = false,
                         hideOthers: Bool = false, quitOthers: Bool = false,
-                        launchDelay: Double = 1.5, iconsOnly: Bool = false) -> RestoreResult {
+                        launchDelay: Double = 1.5, iconsOnly: Bool = false,
+                        shouldCancel: @escaping () -> Bool = { false }) -> RestoreResult {
         guard let data = load(name) else {
             return RestoreResult(success: 0, failed: 0,
                                  error: L("Profil '\(name)' nicht gefunden", "Profile '\(name)' not found"),
@@ -286,6 +298,40 @@ enum Profiles {
             if let b = settings["restore_browser_tabs"] as? Bool { incBrowserTabs = b && includeApps }
         }
 
+        let profileApps = parseApps(data["apps"])
+        let savedBrowserTabs = incBrowserTabs ? BrowserTabs.parse(data["browser_tabs"]) : [:]
+        var savedBrowserWindows = incBrowserTabs
+            ? BrowserTabs.parseWindowPositions(data["browser_windows"]) : [:]
+        // Abwärtskompatibilität: ältere Profile haben Browser-Fenster nur
+        // innerhalb der allgemeinen App-Daten gespeichert.
+        if incBrowserTabs && savedBrowserWindows.isEmpty {
+            for app in profileApps {
+                guard let bundleID = app.bundleID,
+                      savedBrowserTabs[bundleID] != nil,
+                      !app.windows.isEmpty else { continue }
+                savedBrowserWindows[bundleID] = app.windows
+            }
+        }
+        let generalApps = appsForGeneralLaunch(profileApps, browserTabs: savedBrowserTabs)
+        var warnings: [String] = []
+
+        // Browser mit gespeicherten Tabs werden nie zusätzlich über
+        // Apps.launch gestartet.
+        if incBrowserTabs {
+            let browserResult = BrowserTabs.restore(
+                savedBrowserTabs,
+                windowPositions: savedBrowserWindows,
+                shouldCancel: shouldCancel)
+            if !browserResult.failedBrowsers.isEmpty {
+                let browsers = browserResult.failedBrowsers.joined(separator: ", ")
+                warnings.append(L("Browser konnte nicht beendet oder mit den gespeicherten Tabs gestartet werden (\(browsers)).",
+                                  "Browser could not be quit or started with the saved tabs (\(browsers))."))
+            }
+        }
+        if shouldCancel() {
+            return RestoreResult(success: 0, failed: 0, error: nil, warning: nil)
+        }
+
         // Sichtbarkeit wiederherstellen
         let visibility = DesktopIcons.getAllItems().map {
             (name: $0.name, hidden: hiddenList.contains($0.name))
@@ -296,7 +342,7 @@ enum Profiles {
         if restorePositions, let posObj = data["positions"] as? [String: [String: Int]] {
             var positions: [String: (x: Int, y: Int)] = [:]
             for (k, v) in posObj { positions[k] = (v["x"] ?? 0, v["y"] ?? 0) }
-            let r = DesktopIcons.setPositions(positions)
+            let r = DesktopIcons.setPositions(positions, shouldCancel: shouldCancel)
             success = r.success; failed = r.failed
         }
 
@@ -305,20 +351,17 @@ enum Profiles {
             else if let s = data["wallpaper"] as? String, !s.isEmpty { Wallpaper.set([s]) }
         }
 
-        let profileApps = parseApps(data["apps"])
-        if incApps && !profileApps.isEmpty {
-            Apps.launch(profileApps, staggerDelay: launchDelay)
+        if shouldCancel() {
+            return RestoreResult(success: success, failed: failed, error: nil, warning: nil)
         }
-        var warnings: [String] = []
-        if incBrowserTabs {
-            let browserResult = BrowserTabs.restore(BrowserTabs.parse(data["browser_tabs"]))
-            if !browserResult.failedBrowsers.isEmpty {
-                let browsers = browserResult.failedBrowsers.joined(separator: ", ")
-                warnings.append(L("Browser-Tabs konnten nicht geöffnet werden (\(browsers)). Prüfe die Automatisierungsfreigabe.",
-                                  "Browser tabs could not be opened (\(browsers)). Check the Automation permission."))
-            }
+        if incApps && !generalApps.isEmpty {
+            Apps.launch(generalApps, staggerDelay: launchDelay,
+                        shouldCancel: shouldCancel)
         }
         if !iconsOnly {
+            // Wie im stabilen GitHub-Stand erst ganz am Ende bereinigen. So kann
+            // keine nachfolgende App- oder Browser-Wiederherstellung eine zuvor
+            // ausgeblendete Anwendung (z. B. Thunderbird) wieder einblenden.
             if quitOthers { _ = Apps.quitOthers(keep: profileApps) }
             else if hideOthers { _ = Apps.hideOthers(keep: profileApps) }
 
@@ -344,6 +387,14 @@ enum Profiles {
                 path: d["path"] as? String ?? "",
                 windows: (d["windows"] as? [[String: Int]]) ?? []
             )
+        }
+    }
+
+    static func appsForGeneralLaunch(_ apps: [Apps.AppInfo],
+                                     browserTabs: [String: [String]]) -> [Apps.AppInfo] {
+        apps.filter { app in
+            guard let bundleID = app.bundleID else { return true }
+            return browserTabs[bundleID] == nil
         }
     }
 
