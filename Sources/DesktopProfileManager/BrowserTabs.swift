@@ -5,6 +5,11 @@ import Foundation
 /// Firefox stellt keine verlässliche öffentliche Schnittstelle zum Auslesen
 /// vorhandener Tabs bereit und wird deshalb bewusst nicht erfasst.
 enum BrowserTabs {
+    /// Ein Browser erhält ausreichend Zeit für ein reguläres vollständiges
+    /// Beenden. Ein erzwungenes Beenden wird wegen möglicher Datenverluste vermieden.
+    static let quitTimeout: TimeInterval = 15
+    static let windowRestoreDelay: TimeInterval = 2
+
     struct RestoreOutcome {
         let openedTabs: Int
         let failedBrowsers: [String]
@@ -35,7 +40,7 @@ enum BrowserTabs {
                             set output to output & (URL of t) & linefeed
                         end try
                     end repeat
-                end if
+                end repeat
                 return output
             end tell
             """
@@ -46,27 +51,132 @@ enum BrowserTabs {
         return result
     }
 
-    /// Öffnet die gespeicherten URLs als neue Tabs. Die Browser werden dabei bei
-    /// Bedarf gestartet; vorhandene Fenster und Tabs bleiben unverändert.
+    /// Erfasst Browser-Fenster unabhängig davon, ob der Browser in der allgemeinen
+    /// App-Auswahl des Profils enthalten ist.
+    static func captureWindowPositions() -> [String: [[String: Int]]] {
+        let windowsByName = Apps.getWindows()
+        var result: [String: [[String: Int]]] = [:]
+        for browser in supportedBrowsers {
+            if let windows = windowsByName[browser.name], !windows.isEmpty {
+                result[browser.bundleID] = windows
+            }
+        }
+        return result
+    }
+
+    /// Beendet den Browser vollständig und startet ihn anschließend mit allen
+    /// gespeicherten URLs in einem Aufruf neu. Dadurch gibt es keine nachlaufende
+    /// Tab-/Fensterbereinigung, die bereits geöffnete Profil-Tabs wieder schließt.
     @discardableResult
-    static func restore(_ savedTabs: [String: [String]]) -> RestoreOutcome {
+    static func restore(_ savedTabs: [String: [String]],
+                        windowPositions: [String: [[String: Int]]] = [:],
+                        shouldCancel: @escaping () -> Bool = { false }) -> RestoreOutcome {
         var openedTabs = 0
         var failedBrowsers: [String] = []
         for browser in supportedBrowsers {
+            if shouldCancel() { break }
             guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: browser.bundleID) != nil,
                   let urls = savedTabs[browser.bundleID] else { continue }
             let valid = validURLs(urls)
             guard !valid.isEmpty else { continue }
 
-            let script = restoreScript(browserName: browser.name,
-                                       urls: valid)
-            if Shell.runAppleScript(script) != nil {
+            let stopResult = stop(browserName: browser.name, bundleID: browser.bundleID,
+                                  shouldCancel: shouldCancel)
+            guard stopResult.stopped else {
+                if shouldCancel() { break }
+                failedBrowsers.append(stopResult.message ?? browser.name)
+                continue
+            }
+
+            let result = Shell.run("/usr/bin/open",
+                                   launchArguments(bundleID: browser.bundleID, urls: valid),
+                                   timeout: 20)
+            if result.code == 0 {
                 openedTabs += valid.count
+                if let windows = windowPositions[browser.bundleID], !windows.isEmpty,
+                   cancellableDelay(windowRestoreDelay, shouldCancel: shouldCancel) {
+                    let app = Apps.AppInfo(name: browser.name,
+                                           bundleID: browser.bundleID,
+                                           path: "",
+                                           windows: windows)
+                    // Der Prozess kann bereits laufen, während sein erstes Fenster
+                    // noch entsteht. Mehrere kurze Versuche sind zuverlässiger als
+                    // eine lange starre Pause.
+                    for attempt in 0..<3 {
+                        if shouldCancel() { break }
+                        Apps.restoreWindows([app], shouldCancel: shouldCancel)
+                        if attempt < 2 && !cancellableDelay(0.5, shouldCancel: shouldCancel) {
+                            break
+                        }
+                    }
+                }
             } else {
                 failedBrowsers.append(browser.name)
             }
         }
         return RestoreOutcome(openedTabs: openedTabs, failedBrowsers: failedBrowsers)
+    }
+
+    static func launchArguments(bundleID: String, urls: [String]) -> [String] {
+        ["-b", bundleID] + urls
+    }
+
+    static func quitScript(browserName: String) -> String {
+        """
+        ignoring application responses
+            tell application "\(browserName)" to quit
+        end ignoring
+        """
+    }
+
+    private static func stop(browserName: String, bundleID: String,
+                             shouldCancel: @escaping () -> Bool) -> (stopped: Bool, message: String?) {
+        let running = NSWorkspace.shared.runningApplications.filter {
+            $0.bundleIdentifier == bundleID && !$0.isTerminated
+        }
+        guard !running.isEmpty else { return (true, nil) }
+
+        // Genau ein regulärer Beenden-Befehl wie bei ⌘Q. Nur wenn AppleScript
+        // diesen Befehl gar nicht senden konnte, dient NSWorkspace als Fallback.
+        let quitResult = Shell.runAppleScriptResult(
+            quitScript(browserName: browserName), timeout: 2,
+            shouldCancel: shouldCancel)
+        if quitResult.code != 0 {
+            for application in running where !application.isTerminated {
+                _ = application.terminate()
+            }
+        }
+        let stopped = waitUntilStopped(applications: running, timeout: quitTimeout,
+                                       shouldCancel: shouldCancel)
+        if stopped { return (true, nil) }
+        return (false, L("\(browserName): Beenden wurde nach 15 Sekunden nicht abgeschlossen",
+                         "\(browserName): quit did not complete within 15 seconds"))
+    }
+
+    private static func waitUntilStopped(applications: [NSRunningApplication], timeout: TimeInterval,
+                                         shouldCancel: @escaping () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if shouldCancel() { return false }
+            // Nur die zuvor laufenden Instanzen beobachten. macOS darf Safari
+            // anschließend vorladen, ohne dass dies als fehlgeschlagenes Beenden
+            // der alten Browserinstanz gewertet wird.
+            if applications.allSatisfy(\.isTerminated) {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        } while Date() < deadline
+        return false
+    }
+
+    private static func cancellableDelay(_ duration: TimeInterval,
+                                         shouldCancel: @escaping () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(duration)
+        while Date() < deadline {
+            if shouldCancel() { return false }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return !shouldCancel()
     }
 
     static func parse(_ raw: Any?) -> [String: [String]] {
@@ -75,6 +185,25 @@ enum BrowserTabs {
         for (bundleID, value) in dictionary {
             let urls = validURLs(value as? [String] ?? [])
             if !urls.isEmpty { result[bundleID] = urls }
+        }
+        return result
+    }
+
+    static func parseWindowPositions(_ raw: Any?) -> [String: [[String: Int]]] {
+        guard let dictionary = raw as? [String: Any] else { return [:] }
+        var result: [String: [[String: Int]]] = [:]
+        for (bundleID, rawWindows) in dictionary {
+            guard let windows = rawWindows as? [Any] else { continue }
+            let validWindows = windows.compactMap { rawWindow -> [String: Int]? in
+                guard let window = rawWindow as? [String: Any],
+                      let x = window["x"] as? Int,
+                      let y = window["y"] as? Int,
+                      let width = window["w"] as? Int,
+                      let height = window["h"] as? Int,
+                      width > 0, height > 0 else { return nil }
+                return ["x": x, "y": y, "w": width, "h": height]
+            }
+            if !validWindows.isEmpty { result[bundleID] = validWindows }
         }
         return result
     }
@@ -90,6 +219,12 @@ enum BrowserTabs {
         let previous = parse(existing)
         guard !previous.isEmpty else { return (captured, false) }
         return (previous, true)
+    }
+
+    static func windowPositionsForSave(captured: [String: [[String: Int]]],
+                                       existing: Any?, captureRequested: Bool) -> [String: [[String: Int]]] {
+        guard captureRequested, captured.isEmpty else { return captured }
+        return parseWindowPositions(existing)
     }
 
     static func validURLs(_ candidates: [String]) -> [String] {
@@ -110,45 +245,4 @@ enum BrowserTabs {
         }
     }
 
-    /// Der Befehl läuft bereits im Kontext von `tell front window`. Eine zweite
-    /// Referenz auf `front window` würde Safari als Fenster-eines-Fensters
-    /// interpretieren und das Öffnen der Tabs fehlschlagen lassen.
-    static func tabCreationCommands(_ urls: [String]) -> String {
-        urls.map {
-            "    make new tab at end of tabs with properties {URL:\"\(Shell.esc($0))\"}"
-        }.joined(separator: "\n")
-    }
-
-    /// Browser erzeugen beim Start häufig einen zusätzlichen leeren Startseiten-Tab.
-    /// Der Browser kann zuvor bereits durch die App-Wiederherstellung gestartet worden
-    /// sein. Daher wird nicht der Prozessstatus, sondern die Startseiten-URL geprüft.
-    /// Bereits vorhandene Nutzer-Tabs bleiben unverändert.
-    static func restoreScript(browserName: String, urls: [String]) -> String {
-        guard let firstURL = urls.first else { return "" }
-        let allTabCommands = tabCreationCommands(urls)
-        let remainingTabCommands = tabCreationCommands(Array(urls.dropFirst()))
-        return """
-        tell application "\(browserName)"
-            activate
-            if (count of windows) is 0 then
-                make new window
-            end if
-            tell front window
-                set reuseStartPageTab to false
-                try
-                    set firstTabURL to URL of tab 1
-                    if firstTabURL is in {"favorites://", "about:blank", "chrome://newtab/", "edge://newtab/", "safari://startpage", "safari://startpage/"} then
-                        set reuseStartPageTab to true
-                    end if
-                end try
-                if reuseStartPageTab then
-                    set URL of tab 1 to "\(Shell.esc(firstURL))"
-        \(remainingTabCommands)
-                else
-        \(allTabCommands)
-                end if
-            end tell
-        end tell
-        """
-    }
 }

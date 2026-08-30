@@ -34,7 +34,8 @@ enum DesktopIcons {
 
     /// Setzt Positionen per Referenz-Iteration (umgeht macOS-Namen-Lookup-Bug).
     @discardableResult
-    static func setPositions(_ positions: [String: (x: Int, y: Int)]) -> (success: Int, failed: Int) {
+    static func setPositions(_ positions: [String: (x: Int, y: Int)],
+                             shouldCancel: () -> Bool = { false }) -> (success: Int, failed: Int) {
         if positions.isEmpty { return (0, 0) }
         var entries: [String] = []
         for (name, pos) in positions {
@@ -67,12 +68,19 @@ enum DesktopIcons {
         end tell
         return (successCount as text) & "|" & (failedCount as text)
         """
-        guard let result = Shell.runAppleScript(script) else { return (0, positions.count) }
+        guard let result = Shell.runAppleScript(
+            script,
+            timeout: positionRestoreTimeout(itemCount: positions.count),
+            shouldCancel: shouldCancel) else { return (0, positions.count) }
         let parts = result.components(separatedBy: "|")
         if parts.count == 2, let s = Int(parts[0]), let f = Int(parts[1]) {
             return (s, f)
         }
         return (0, positions.count)
+    }
+
+    static func positionRestoreTimeout(itemCount: Int) -> TimeInterval {
+        min(30, max(10, 5 + (Double(itemCount) * 0.1)))
     }
 
     // MARK: - Sichtbarkeit (versteckte Desktop-Dateien)

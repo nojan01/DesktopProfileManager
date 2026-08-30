@@ -1,6 +1,33 @@
 import AppKit
 import Foundation
 
+/// Verhindert, dass während eines laufenden Profilwechsels ein zweiter Wechsel
+/// angenommen wird. Der Zustand ist auch für Hotkeys und Timer thread-sicher.
+final class RestoreActivityGate {
+    private let lock = NSLock()
+    private var active = false
+
+    func begin() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !active else { return false }
+        active = true
+        return true
+    }
+
+    func finish() {
+        lock.lock()
+        active = false
+        lock.unlock()
+    }
+
+    var isActive: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return active
+    }
+}
+
 /// Menüleisten-App: NSStatusItem mit Profil-Schnellauswahl und Einstellungen.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let config = Config()
@@ -16,7 +43,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var autoRestoreTimer: Timer?
     /// Wiederherstellungen dürfen nicht parallel laufen: parallele AppleScripts
     /// könnten sonst Tabs verschiedener Profile in denselben Browser schreiben.
+    /// Ein bereits laufender Wechsel wird immer vollständig abgeschlossen. Bis
+    /// dahin werden keine weiteren Profilwechsel angenommen.
     private let restoreQueue = DispatchQueue(label: "com.desktopprofilemanager.restore")
+    private let restoreActivity = RestoreActivityGate()
+    var isRestoreInProgress: Bool { restoreActivity.isActive }
 
     private let githubRepo = "nojan01/IconGuard"
     private let launchDelayOptions: [Double] = [0, 0.5, 1, 1.5, 2, 3, 5]
@@ -124,6 +155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let item = NSMenuItem(title: title, action: #selector(onRestore(_:)), keyEquivalent: "")
                 item.target = self
                 item.representedObject = p.name
+                item.isEnabled = !isRestoreInProgress
                 if p.name == activeProfile {
                     item.attributedTitle = NSAttributedString(
                         string: title,
@@ -171,6 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let item = NSMenuItem(title: "\(prefix)\(p.name)", action: #selector(onRestore(_:)), keyEquivalent: "")
                 item.target = self
                 item.representedObject = p.name
+                item.isEnabled = !isRestoreInProgress
                 restoreMenu.addItem(item)
             }
         }
@@ -488,25 +521,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func doRestore(_ name: String, notify: Bool = true, includeApps: Bool? = nil, markActive: Bool = false, iconsOnly: Bool = false) {
+        guard restoreActivity.begin() else {
+            if notify {
+                Notifier.show(
+                    L("Profilwechsel läuft", "Profile switch in progress"),
+                    L("Bitte warte, bis der laufende Profilwechsel abgeschlossen ist.",
+                      "Please wait for the current profile switch to finish."))
+            }
+            return
+        }
         let incApps = includeApps ?? config.get("restore_apps", true)
         let incWallpaper = config.get("restore_wallpaper", true)
         let hideOthers = config.get("hide_other_apps", false)
         let quitOthers = config.get("quit_other_apps", false)
         let delay = config.get("app_launch_delay", 1.5)
+        // Menü und Widget zeigen sofort an, dass keine weitere Umschaltung
+        // angenommen wird. Einstellungen und Beenden bleiben bedienbar.
+        buildMenu()
 
-        restoreQueue.async {
+        restoreQueue.async { [weak self] in
+            guard let self else { return }
             let r = Profiles.restore(name, includeWallpaper: incWallpaper, includeApps: incApps,
                                      hideOthers: hideOthers, quitOthers: quitOthers, launchDelay: delay,
-                                     iconsOnly: iconsOnly)
+                                     iconsOnly: iconsOnly,
+                                     shouldCancel: { false })
             DispatchQueue.main.async {
+                self.restoreActivity.finish()
                 if let error = r.error {
+                    self.buildMenu()
                     if notify { Notifier.show(L("Fehler", "Error"), error) }
                     return
                 }
                 if markActive {
                     self.activeProfile = name
-                    self.buildMenu()
                 }
+                self.buildMenu()
                 var msg = L("\(r.success) Icons wiederhergestellt", "\(r.success) icons restored")
                 if r.failed > 0 { msg += L(", \(r.failed) fehlgeschlagen", ", \(r.failed) failed") }
                 if let w = r.warning { msg += "\n⚠️ " + w }
@@ -1062,6 +1111,12 @@ enum Notifier {
     static func show(_ title: String, _ message: String) {
         let t = Shell.esc(title)
         let m = Shell.esc(message.replacingOccurrences(of: "\n", with: " "))
-        _ = Shell.runAppleScript("display notification \"\(m)\" with title \"\(Paths.appName)\" subtitle \"\(t)\"")
+        // Eine verzögerte Systembenachrichtigung darf weder Menü noch nächsten
+        // Profilwechsel auf dem Main Thread aufhalten.
+        DispatchQueue.global(qos: .utility).async {
+            _ = Shell.runAppleScript(
+                "display notification \"\(m)\" with title \"\(Paths.appName)\" subtitle \"\(t)\"",
+                timeout: 5)
+        }
     }
 }

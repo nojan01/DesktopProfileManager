@@ -80,6 +80,9 @@ show/hide apps.</p>
 wallpaper, and app launching still work – only exact window restoration does not.</p>
 <p>For browser tabs, macOS may additionally request <strong>Automation</strong> permission for Safari,
 Google Chrome, or Microsoft Edge. This permission is needed to read and reopen tabs.</p>
+<p><strong>Supported browsers:</strong> Safari, Google Chrome, and Microsoft Edge. <strong>Firefox</strong>
+is not supported because it does not provide a reliable public AppleScript interface for saving
+and restoring tabs.</p>
 
 <h2 id="menu">The menu at a glance</h2>
 <p>From top to bottom the menu consists of:</p>
@@ -243,13 +246,18 @@ interval.</p>
   <li><strong>Wi-Fi name (optional)</strong> – the profile is loaded automatically when connecting to this
     network (if auto switch is active).</li>
   <li><strong>What to save/restore?</strong> – icon positions, hidden icons, wallpaper, apps, and browser tabs.</li>
-  <li><strong>Browser tabs (Safari, Chrome, Edge)</strong> – Saves all open web and local file tabs
+  <li><strong>Browser tabs (Safari, Google Chrome, Microsoft Edge)</strong> – Saves all open web and local file tabs
     (<code>http(s)://</code>, <code>file://</code>) from currently
-    running supported browsers. On restore they are opened as new tabs and existing tabs remain open.
-    If an empty start-page tab is open, it is replaced with the first saved tab. <strong>Firefox</strong>
-    tabs cannot be read reliably without a browser extension. URLs can contain
+    running supported browsers as well as browser window position and size. On restore the app
+    quits the browser normally and completely, then starts it once with all saved profile tabs.
+    Other apps are cleaned up beforehand. If the browser does not respond to the normal quit within
+    15 seconds, the switch stops with a warning; the app never force-quits the browser. Supported
+    browsers are Safari, Google Chrome,
+    and Microsoft Edge. <strong>Firefox</strong> is not supported because its tabs cannot be read or
+    reopened reliably without a browser extension. URLs can contain
     search terms, internal addresses, or parameters and are stored in the profile. File URLs are captured
-    only for local, absolute paths.</li>
+    only for local, absolute paths. Browser window positions require Accessibility permission. Existing
+    profiles must be overwritten once so the browser position is stored separately.</li>
   <li><strong>System state</strong> – dark mode, volume, brightness, Do Not Disturb, Dock, desktop view.</li>
   <li><strong>App list</strong> – which running apps belong to the profile (with <em>Select all</em>).</li>
 </ul>
@@ -271,7 +279,16 @@ Grant the app permission under <em>Privacy &amp; Security › Accessibility</em>
 <p><strong>My browser tabs are not saved or reopened.</strong><br>
 Enable <em>Browser tabs (Safari, Chrome, Edge)</em> for the profile, keep the browser open while saving,
 and enable <em>Launch apps on restore</em>. Also grant the requested Automation permission. Firefox tabs
-are not captured automatically.</p>
+are not captured automatically. On restore the browser is quit normally and restarted with the profile
+tabs. If a dialog, download, or unsaved content prevents quitting for more than 15 seconds, the app
+stops without force-quitting it.</p>
+<p><strong>The browser window position is not restored.</strong><br>
+Grant Accessibility permission and overwrite the profile once while the browser is open. This adds the
+separately stored browser position to older profiles.</p>
+<p><strong>No other profile can be selected while a profile switch is in progress.</strong><br>
+Profile items in the menu and widget remain disabled until the current switch has completed. Shortcuts
+and automatic rules also cannot start a second switch during this time. This prevents browser quit,
+tab launch, and window restoration operations from overlapping.</p>
 <p><strong>The widget is hidden after a restart.</strong><br>
 Visibility is saved permanently. Re-enable the widget via <em>Settings › Show profile widget</em>.</p>
 
