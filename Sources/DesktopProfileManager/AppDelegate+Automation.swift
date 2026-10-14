@@ -225,6 +225,7 @@ extension AppDelegate {
             setWiFiOffByApp(true)
             return nil
         case .keptNoCable:
+            setWiFiOffByApp(false)
             return L("Kein Netzwerkkabel verbunden – WLAN bleibt eingeschaltet.",
                      "No network cable connected – Wi-Fi stays on.")
         case .failed:

@@ -22,8 +22,8 @@ enum NetworkMode: String, CaseIterable {
 
     var usesWiFi: Bool { self == .wifi || self == .both }
     var usesEthernet: Bool { self == .ethernet || self == .both }
-    /// Nur bei eindeutiger Verbindung kann das WLAN passend geschaltet werden.
-    var canSwitchWiFi: Bool { self == .wifi || self == .ethernet }
+    /// „Kabel“ schaltet das WLAN aus, „WLAN“ und „Beides“ schalten es ein.
+    var canSwitchWiFi: Bool { self != .none }
 
     var title: String {
         switch self {
@@ -100,8 +100,10 @@ enum Ethernet {
 }
 
 /// Schaltet das WLAN passend zur Netzwerk-Zuordnung eines Profils: „Kabel“
-/// schaltet es aus, „WLAN“ ein. Das Kabel bleibt immer unangetastet, weil
-/// macOS dafür bei jeder Änderung ein Administratorpasswort verlangt.
+/// schaltet es aus, „WLAN“ und „Beides“ ein. Hat die App das WLAN
+/// ausgeschaltet, schaltet jedes andere Profil es wieder ein. Das Kabel bleibt
+/// immer unangetastet, weil macOS dafür bei jeder Änderung ein
+/// Administratorpasswort verlangt.
 enum WiFiSwitch {
     enum Action: Equatable { case none, turnOn, turnOff, keepNoCable }
 
@@ -122,18 +124,31 @@ enum WiFiSwitch {
 
     static let settingsKey = "network_switch_wifi"
 
+    /// Für das Schalten zählt „Beides“ auch ohne WLAN-Namen als WLAN-Nutzung,
+    /// damit es das WLAN nie ausschaltet.
+    static func switchMode(settings: [String: Any]) -> NetworkMode {
+        if settings["network_mode"] as? String == NetworkMode.both.rawValue { return .both }
+        return NetworkMode.from(settings: settings)
+    }
+
     static func isEnabled(settings: [String: Any]) -> Bool {
-        settings[settingsKey] as? Bool == true && NetworkMode.from(settings: settings).canSwitchWiFi
+        settings[settingsKey] as? Bool == true && switchMode(settings: settings).canSwitchWiFi
     }
 
     /// WLAN wird nur ausgeschaltet, wenn das Kabel tatsächlich verbunden ist –
-    /// sonst stünde der Mac ohne Netzwerk da.
-    static func action(mode: NetworkMode, ethernetConnected: Bool) -> Action {
-        switch mode {
-        case .wifi: return .turnOn
-        case .ethernet: return ethernetConnected ? .turnOff : .keepNoCable
-        case .none, .both: return .none
+    /// sonst stünde der Mac ohne Netzwerk da. Hat die App das WLAN zuvor
+    /// ausgeschaltet (`wifiOffByApp`), schaltet jedes Profil, das es nicht
+    /// selbst ausschaltet, es wieder ein.
+    static func action(mode: NetworkMode, switchEnabled: Bool, ethernetConnected: Bool,
+                       wifiOffByApp: Bool) -> Action {
+        if switchEnabled {
+            switch mode {
+            case .wifi, .both: return .turnOn
+            case .ethernet: return ethernetConnected ? .turnOff : .keepNoCable
+            case .none: break
+            }
         }
+        return wifiOffByApp ? .turnOn : .none
     }
 
     /// Prüfungen in Folge ohne Kabel, bevor das WLAN zurückkommt. Nach dem
@@ -150,13 +165,17 @@ enum WiFiSwitch {
     }
 
     /// Kann Hilfsprozesse starten – nicht auf dem Main Thread aufrufen.
-    static func apply(settings: [String: Any]) -> Outcome {
-        guard isEnabled(settings: settings), WiFi.isAvailable else { return .unchanged }
-        let mode = NetworkMode.from(settings: settings)
-        let wired = mode == .ethernet && Ethernet.isConnected()
-        switch action(mode: mode, ethernetConnected: wired) {
+    static func apply(settings: [String: Any], wifiOffByApp: Bool) -> Outcome {
+        guard WiFi.isAvailable else { return .unchanged }
+        let mode = switchMode(settings: settings)
+        let enabled = isEnabled(settings: settings)
+        let wired = enabled && mode == .ethernet && Ethernet.isConnected()
+        switch action(mode: mode, switchEnabled: enabled, ethernetConnected: wired, wifiOffByApp: wifiOffByApp) {
         case .none: return .unchanged
-        case .keepNoCable: return .keptNoCable
+        case .keepNoCable:
+            // Ein von der App ausgeschaltetes WLAN kommt ohne Kabel sofort zurück.
+            if wifiOffByApp && !WiFi.isPoweredOn && !WiFi.setPower(true) { return .failed }
+            return .keptNoCable
         case .turnOn:
             return WiFi.isPoweredOn || WiFi.setPower(true) ? .wifiOn : .failed
         case .turnOff:

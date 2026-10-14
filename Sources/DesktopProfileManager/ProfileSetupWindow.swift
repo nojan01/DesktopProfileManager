@@ -145,14 +145,14 @@ final class ProfileSetupWindow: NSObject, NSWindowDelegate {
         content.addSubview(wifiCombo)
         yCursor -= 30
 
-        wifiSwitchBox = NSButton(checkboxWithTitle: L("WLAN passend schalten (bei „Kabel“ aus, bei „WLAN“ ein)",
-                                                      "Switch Wi-Fi accordingly (off for “Cable”, on for “Wi-Fi”)"),
+        wifiSwitchBox = NSButton(checkboxWithTitle: L("WLAN passend schalten (Kabel: aus, WLAN/Beides: ein)",
+                                                      "Switch Wi-Fi accordingly (Cable: off, Wi-Fi/Both: on)"),
                                  target: nil, action: nil)
         wifiSwitchBox.frame = NSRect(x: padding, y: yCursor - 22, width: innerW, height: 22)
         wifiSwitchBox.state = isEdit && savedSettings[WiFiSwitch.settingsKey] as? Bool == true ? .on : .off
         wifiSwitchBox.toolTip = L(
-            "Das Kabel bleibt immer eingeschaltet. WLAN wird nur ausgeschaltet, wenn ein Kabel verbunden ist, und kommt automatisch zurück, sobald das Kabel getrennt wird. Ohne WLAN funktionieren AirDrop und Handoff nicht.",
-            "The cable always stays on. Wi-Fi is only turned off while a cable is connected and comes back automatically when the cable is disconnected. AirDrop and Handoff need Wi-Fi.")
+            "Das Kabel bleibt immer eingeschaltet. WLAN wird nur ausgeschaltet, wenn ein Kabel verbunden ist, und kommt automatisch zurück, sobald das Kabel getrennt wird oder du zu einem anderen Profil wechselst. Ohne WLAN funktionieren AirDrop und Handoff nicht.",
+            "The cable always stays on. Wi-Fi is only turned off while a cable is connected and comes back automatically when the cable is disconnected or you switch to another profile. AirDrop and Handoff need Wi-Fi.")
         // Ohne WLAN-Hardware gibt es nichts zu schalten.
         wifiSwitchBox.isHidden = !WiFi.isAvailable
         content.addSubview(wifiSwitchBox)

@@ -85,23 +85,42 @@ final class NetworkAssignmentTests: XCTestCase {
         XCTAssertFalse(Ethernet.isWiredService(type: "Bridge", displayName: "Thunderbolt Bridge"))
     }
 
-    func testWiFiSwitchActions() {
-        XCTAssertEqual(WiFiSwitch.action(mode: .wifi, ethernetConnected: false), .turnOn)
-        XCTAssertEqual(WiFiSwitch.action(mode: .wifi, ethernetConnected: true), .turnOn)
-        XCTAssertEqual(WiFiSwitch.action(mode: .ethernet, ethernetConnected: true), .turnOff)
-        // Ohne Kabel bliebe der Mac sonst ohne Netzwerk.
-        XCTAssertEqual(WiFiSwitch.action(mode: .ethernet, ethernetConnected: false), .keepNoCable)
-        XCTAssertEqual(WiFiSwitch.action(mode: .both, ethernetConnected: true), .none)
-        XCTAssertEqual(WiFiSwitch.action(mode: .none, ethernetConnected: true), .none)
+    private func wifiAction(_ mode: NetworkMode, enabled: Bool = true, cable: Bool = true,
+                            offByApp: Bool = false) -> WiFiSwitch.Action {
+        WiFiSwitch.action(mode: mode, switchEnabled: enabled, ethernetConnected: cable, wifiOffByApp: offByApp)
     }
 
-    func testWiFiSwitchOnlyWhenEnabledForClearMode() {
+    func testWiFiSwitchActions() {
+        XCTAssertEqual(wifiAction(.wifi, cable: false), .turnOn)
+        XCTAssertEqual(wifiAction(.wifi), .turnOn)
+        XCTAssertEqual(wifiAction(.both), .turnOn)
+        XCTAssertEqual(wifiAction(.both, cable: false), .turnOn)
+        XCTAssertEqual(wifiAction(.ethernet), .turnOff)
+        // Ohne Kabel bliebe der Mac sonst ohne Netzwerk.
+        XCTAssertEqual(wifiAction(.ethernet, cable: false), .keepNoCable)
+        XCTAssertEqual(wifiAction(.none), .none)
+        XCTAssertEqual(wifiAction(.wifi, enabled: false), .none)
+        XCTAssertEqual(wifiAction(.ethernet, enabled: false), .none)
+    }
+
+    func testOtherProfilesTurnWiFiBackOnAfterCableProfile() {
+        XCTAssertEqual(wifiAction(.none, enabled: false, offByApp: true), .turnOn)
+        XCTAssertEqual(wifiAction(.both, enabled: false, offByApp: true), .turnOn)
+        XCTAssertEqual(wifiAction(.ethernet, enabled: false, offByApp: true), .turnOn)
+        XCTAssertEqual(wifiAction(.ethernet, cable: false, offByApp: true), .keepNoCable)
+        // Ein weiteres Kabel-Profil lässt das WLAN aus.
+        XCTAssertEqual(wifiAction(.ethernet, offByApp: true), .turnOff)
+    }
+
+    func testWiFiSwitchOnlyWhenEnabledForAssignedMode() {
         XCTAssertTrue(WiFiSwitch.isEnabled(settings: ["network_mode": "ethernet", "network_switch_wifi": true]))
         XCTAssertTrue(WiFiSwitch.isEnabled(settings: ["network_mode": "wifi", "wifi_ssid": "Home",
                                                       "network_switch_wifi": true]))
         XCTAssertFalse(WiFiSwitch.isEnabled(settings: ["network_mode": "ethernet"]))
-        XCTAssertFalse(WiFiSwitch.isEnabled(settings: ["network_mode": "both", "wifi_ssid": "Home",
-                                                       "network_switch_wifi": true]))
+        XCTAssertTrue(WiFiSwitch.isEnabled(settings: ["network_mode": "both", "wifi_ssid": "Home",
+                                                      "network_switch_wifi": true]))
+        // „Beides“ ohne WLAN-Namen darf das WLAN nie ausschalten.
+        XCTAssertEqual(WiFiSwitch.switchMode(settings: ["network_mode": "both"]), .both)
         // „WLAN“ ohne Namen ist keine Zuordnung.
         XCTAssertFalse(WiFiSwitch.isEnabled(settings: ["network_mode": "wifi", "network_switch_wifi": true]))
     }

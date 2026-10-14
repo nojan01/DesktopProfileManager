@@ -421,11 +421,14 @@ Fenster mit folgenden Feldern:
   Im Feld daneben wählst du das WLAN aus der Liste: oben das aktuell verbundene, darunter
   die bekannten WLANs wie in den Systemeinstellungen. Ein Name kann auch eingetippt
   werden. Das Feld ist nur bei *WLAN* und *Beides* aktiv.
-- **WLAN passend schalten** (optional, nur bei *WLAN* oder *Kabel*) – beim Wechsel zu
+- **WLAN passend schalten** (optional, bei *WLAN*, *Kabel* oder *Beides*) – beim Wechsel zu
   diesem Profil schaltet die App das WLAN um:
   - **Kabel** – das WLAN wird **ausgeschaltet**, aber nur, wenn ein Netzwerkkabel
     verbunden ist. Ohne Kabel bleibt das WLAN an und die Mitteilung weist darauf hin.
-  - **WLAN** – das WLAN wird **eingeschaltet**.
+  - **WLAN** oder **Beides** – das WLAN wird **eingeschaltet**.
+  - **Jedes andere Profil** schaltet ein WLAN, das die App für ein Kabel-Profil
+    ausgeschaltet hat, wieder ein – auch ohne diese Option. Ein selbst ausgeschaltetes
+    WLAN bleibt aus.
   - Das **Kabel wird nie geschaltet** – macOS verlangt dafür bei jeder Änderung ein
     Administratorpasswort.
   - **Sicherheitsnetz:** Hat die App das WLAN ausgeschaltet und wird das Kabel danach

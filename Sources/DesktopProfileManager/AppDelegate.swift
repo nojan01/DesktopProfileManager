@@ -565,11 +565,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         buildMenu()
 
         let switchWiFi = !iconsOnly && trigger.allowsWiFiSwitch
+        let wifiOffByApp = config.get(AppDelegate.wifiOffByAppKey, false)
         restoreQueue.async { [weak self] in
             guard let self else { return }
             // Vor der Wiederherstellung, damit Browser-Tabs bereits Netz haben.
             let wifiOutcome = switchWiFi
-                ? WiFiSwitch.apply(settings: Profiles.load(name)?["settings"] as? [String: Any] ?? [:])
+                ? WiFiSwitch.apply(settings: Profiles.load(name)?["settings"] as? [String: Any] ?? [:],
+                                   wifiOffByApp: wifiOffByApp)
                 : .unchanged
             let r = Profiles.restore(name, includeWallpaper: incWallpaper, includeApps: incApps,
                                      hideOthers: hideOthers, quitOthers: quitOthers, launchDelay: delay,
