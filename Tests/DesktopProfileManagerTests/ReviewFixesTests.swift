@@ -250,10 +250,10 @@ final class ReviewFixesTests: XCTestCase {
         ]
         XCTAssertEqual(AppDelegate.timeRuleTarget(rules, nowMinutes: 10 * 60), "Work")
         XCTAssertNil(AppDelegate.timeRuleTarget(rules, nowMinutes: 13 * 60))
-        let profiles = [(name: "Home", ssid: "HomeNet")]
-        XCTAssertEqual(AppDelegate.wifiTarget(ssid: "HomeNet", profiles: profiles, rules: rules), "Home")
-        XCTAssertEqual(AppDelegate.wifiTarget(ssid: "Cafe", profiles: profiles, rules: rules), "Travel")
-        XCTAssertNil(AppDelegate.wifiTarget(ssid: nil, profiles: profiles, rules: rules))
+        let profiles = [NetworkAssignment(name: "Home", mode: .wifi, ssid: "HomeNet")]
+        XCTAssertEqual(AppDelegate.networkTarget(ssid: "HomeNet", ethernetConnected: false, profiles: profiles, rules: rules), "Home")
+        XCTAssertEqual(AppDelegate.networkTarget(ssid: "Cafe", ethernetConnected: false, profiles: profiles, rules: rules), "Travel")
+        XCTAssertNil(AppDelegate.networkTarget(ssid: nil, ethernetConnected: false, profiles: profiles, rules: rules))
     }
 
     func testDeletedProfileRulesAreRemoved() {

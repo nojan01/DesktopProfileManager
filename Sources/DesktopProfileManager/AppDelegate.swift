@@ -55,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // Globale Kurzbefehle
     var hotkeyMonitor: Any?
-    // Automatisches Umschalten (Zeit/WLAN)
+    // Automatisches Umschalten (Zeit/Netzwerk)
     var autoSwitchTimer: Timer?
     var lastAutoSwitch: String?
     var isAutoSwitchCheckRunning = false
@@ -417,9 +417,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         settings.addItem(hkModItem)
 
-        // Automatisches Umschalten (Zeit/WLAN)
+        // Automatisches Umschalten (Zeit/Netzwerk)
         let autoSwitchMenu = NSMenu()
-        let autoSwitchItem = NSMenuItem(title: "🕓 " + L("Auto-Umschalten (Zeit/WLAN)", "Auto switch (time/Wi-Fi)"), action: nil, keyEquivalent: "")
+        let autoSwitchItem = NSMenuItem(title: "🕓 " + L("Auto-Umschalten (Zeit/Netzwerk)", "Auto switch (time/network)"), action: nil, keyEquivalent: "")
         autoSwitchItem.submenu = autoSwitchMenu
 
         let asToggle = NSMenuItem(title: L("Aktiviert", "Enabled"), action: #selector(onToggleAutoSwitch), keyEquivalent: "")
@@ -433,13 +433,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         addTimeRule.target = self
         autoSwitchMenu.addItem(addTimeRule)
 
-        let wifiHint = NSMenuItem(title: "📶 " + L("WLAN: im Profil bearbeiten festlegen", "Wi-Fi: set in 'Edit profile'"), action: nil, keyEquivalent: "")
-        autoSwitchMenu.addItem(wifiHint)
+        let networkHint = NSMenuItem(title: "🌐 " + L("Netzwerk (WLAN/Kabel): im Profil bearbeiten festlegen",
+                                                     "Network (Wi-Fi/cable): set in 'Edit profile'"),
+                                     action: nil, keyEquivalent: "")
+        autoSwitchMenu.addItem(networkHint)
 
-        // Aktuelle WLAN-Zuordnungen anzeigen
-        let wifiAssignments = profiles.filter { !$0.wifiSSID.isEmpty }
-        for p in wifiAssignments {
-            autoSwitchMenu.addItem(NSMenuItem(title: "   📶 \(p.wifiSSID) → \(p.name)", action: nil, keyEquivalent: ""))
+        // Aktuelle Netzwerk-Zuordnungen anzeigen
+        for p in profiles where p.networkMode != .none {
+            autoSwitchMenu.addItem(NSMenuItem(title: "   \(p.networkMode.menuLabel(ssid: p.wifiSSID)) → \(p.name)",
+                                              action: nil, keyEquivalent: ""))
         }
 
         // Zeitregeln (und ältere WLAN-Regeln) auflisten – löschbar
@@ -598,6 +600,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             options.systemStateKeys = saved["system_state_keys"] as? [String] ?? []
             options.emoji = saved["emoji"] as? String ?? ""
             options.wifiSSID = saved["wifi_ssid"] as? String ?? ""
+            options.networkMode = NetworkMode.from(settings: saved)
         }
         doSaveWithOptions(name, options: options, overwrite: true)
     }

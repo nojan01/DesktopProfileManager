@@ -20,7 +20,7 @@ enum WiFi {
             return valid
         }
 
-        var ports: [String] = CWWiFiClient.shared().interfaces()?.compactMap { $0.interfaceName } ?? []
+        var ports = interfaceNames()
         if ports.isEmpty {
             let (portsOut, _) = Shell.run("/usr/sbin/networksetup", ["-listallhardwareports"], timeout: 5)
             ports = parseWiFiDevices(portsOut)
@@ -34,6 +34,38 @@ enum WiFi {
             if let ssid = parseIpconfigSummary(summary) { return ssid }
         }
         return nil
+    }
+
+    /// Hat der Mac eine WLAN-Schnittstelle?
+    static var isAvailable: Bool { !interfaceNames().isEmpty }
+
+    private static func interfaceNames() -> [String] {
+        CWWiFiClient.shared().interfaces()?.compactMap { $0.interfaceName } ?? []
+    }
+
+    /// Bekannte WLANs in der Reihenfolge der macOS-Systemeinstellungen.
+    /// Kann Hilfsprozesse starten – nicht auf dem Main Thread aufrufen.
+    static func knownNetworks() -> [String] {
+        var names: [String] = []
+        if let profiles = CWWiFiClient.shared().interface()?.configuration()?.networkProfiles.array
+            as? [CWNetworkProfile] {
+            names = profiles.compactMap { $0.ssid.flatMap(validSSID) }
+        }
+        if names.isEmpty {
+            for dev in interfaceNames() {
+                let (out, _) = Shell.run("/usr/sbin/networksetup", ["-listpreferredwirelessnetworks", dev], timeout: 5)
+                names += parsePreferredNetworks(out)
+            }
+        }
+        var seen = Set<String>()
+        return names.filter { seen.insert($0).inserted }
+    }
+
+    /// Erwartet „Preferred networks on en1:“ gefolgt von eingerückten Namen.
+    static func parsePreferredNetworks(_ output: String) -> [String] {
+        output.split(separator: "\n")
+            .filter { $0.hasPrefix("\t") }
+            .compactMap { validSSID(String($0)) }
     }
 
     /// Verwirft leere und vom System geschwärzte Werte.

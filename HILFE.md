@@ -36,7 +36,7 @@ der macOS-Menüleiste oben rechts. Ein Klick darauf öffnet das Menü.
    - [Beim Anmelden starten](#beim-anmelden-starten)
    - [Kurzbefehle 1–9](#kurzbefehle-19)
    - [Tastenkombination](#tastenkombination)
-   - [Auto-Umschalten (Zeit/WLAN)](#auto-umschalten-zeitwlan)
+   - [Auto-Umschalten (Zeit/Netzwerk)](#auto-umschalten-zeitnetzwerk)
    - [Sprache](#sprache)
    - [Nach Updates suchen](#nach-updates-suchen)
    - [Statuszeile](#statuszeile)
@@ -116,7 +116,7 @@ Untermenü **💾 Profil speichern …**:
 
 - **Neues Profil …** – Öffnet das Profil-Erstellungs-Fenster (siehe
   [unten](#das-profil-erstellungs-fenster-im-detail)). Hier legst du Name, Emoji,
-  Inhalte, optional die WLAN-Zuordnung, Apps und Browser-Tabs fest. Profilnamen
+  Inhalte, optional die Netzwerk-Zuordnung (WLAN/Kabel), Apps und Browser-Tabs fest. Profilnamen
   dürfen Buchstaben, Zahlen, Leerzeichen, Bindestriche und Unterstriche enthalten,
   aber nicht mit einem Unterstrich beginnen (reserviert für interne Dateien wie
   `_config.json`).
@@ -234,7 +234,7 @@ Profil. Wichtig:
 
 - Die **gespeicherten Icon-Positionen, versteckten Icons und das Hintergrundbild
   bleiben unverändert erhalten** – der Desktop wird *nicht* neu erfasst.
-- Geändert werden nur **Metadaten**: Name, Emoji, WLAN-Zuordnung, App-Auswahl,
+- Geändert werden nur **Metadaten**: Name, Emoji, Netzwerk-Zuordnung, App-Auswahl,
   erfasste Systemzustände, Browser-Tabs und die Inhalts-Optionen.
 - Bereits gespeicherte **Systemzustände und Browser-Tabs bleiben erhalten**. Nur neu
   hinzugefügte Apps, neu gewählte Systemzustände bzw. erstmals aktivierte Browser-Tabs
@@ -324,28 +324,35 @@ Zur Auswahl stehen:
 
 jeweils kombiniert mit den Tasten 1–9.
 
-### Auto-Umschalten (Zeit/WLAN)
+### Auto-Umschalten (Zeit/Netzwerk)
 
-Untermenü **🕓 Auto-Umschalten (Zeit/WLAN)**: schaltet Profile automatisch anhand der
-Uhrzeit oder des verbundenen WLANs um.
+Untermenü **🕓 Auto-Umschalten (Zeit/Netzwerk)**: schaltet Profile automatisch anhand der
+Uhrzeit, des verbundenen WLANs oder eines angeschlossenen Netzwerkkabels um.
 
 - **Aktiviert** (Schalter) – schaltet die gesamte Auto-Umschaltung ein/aus.
 - **➕ Zeitregel hinzufügen … (Profil nach Uhrzeit)** – Legt eine Regel an, die zu
   einer bestimmten Uhrzeit/Zeitspanne ein bestimmtes Profil aktiviert.
-- **📶 WLAN: im Profil bearbeiten festlegen** – Hinweis: Die WLAN-Zuordnung legst du
-  pro Profil im Bearbeiten-/Erstellen-Fenster im Feld *WLAN-Name* fest. Verbindet sich
-  der Mac mit diesem WLAN, wird das zugehörige Profil aktiviert.
-- Darunter werden die **aktiven WLAN-Zuordnungen** (`📶 WLAN → Profil`) sowie die
+- **🌐 Netzwerk (WLAN/Kabel): im Profil bearbeiten festlegen** – Hinweis: Die
+  Netzwerk-Zuordnung legst du pro Profil im Bearbeiten-/Erstellen-Fenster im Feld
+  *Netzwerk* fest (WLAN, Kabel oder beides).
+- Darunter werden die **aktiven Netzwerk-Zuordnungen** (z. B. `📶 Zuhause → Profil`,
+  `🔌 Kabel → Profil` oder `📶 Zuhause / 🔌 Kabel → Profil`) sowie die
   angelegten **Zeit- und WLAN-Regeln** aufgelistet. Ein Klick auf eine Regel mit dem
   Zusatz *(löschen)* entfernt sie.
 
 Gut zu wissen:
 
-- **Zeitregeln haben Vorrang** vor WLAN-Zuordnungen. Zeitspannen über Mitternacht
+- **Zeitregeln haben Vorrang** vor Netzwerk-Zuordnungen. Zeitspannen über Mitternacht
   (z. B. `22:00-06:00`) werden unterstützt.
+- **Kabel hat Vorrang vor WLAN:** Ist ein Netzwerkkabel verbunden, gewinnt ein Profil mit
+  *Kabel*, danach eines mit *Beides*. Erst ohne Kabel entscheidet das verbundene WLAN
+  (zuerst Profile mit *WLAN*, dann mit *Beides*). Bei mehreren passenden Profilen gilt die
+  Reihenfolge der Profilliste.
+- Ältere Profile mit WLAN-Namen werden automatisch als *WLAN* übernommen.
 - Für die **WLAN-Erkennung** verlangt macOS die Freigabe der **Ortungsdienste**. Beim
   Aktivieren des Auto-Umschaltens fragt die App einmalig danach; ohne Freigabe meldet
-  macOS keinen WLAN-Namen und WLAN-Regeln greifen nicht. Die Freigabe findest du unter
+  macOS keinen WLAN-Namen und WLAN-Zuordnungen greifen nicht (Kabel funktioniert auch
+  ohne Freigabe). Die Freigabe findest du unter
   *Systemeinstellungen › Datenschutz & Sicherheit › Ortungsdienste*.
 - Das Auto-Umschalten startet keine Apps und beendet keine anderen Apps. Ist *Andere
   Apps beim Wechsel ausblenden* aktiv, werden fremde Apps ausgeblendet.
@@ -400,8 +407,17 @@ Fenster mit folgenden Feldern:
 - **Emoji-Feld** – das Symbol, das in Menü und Widget vor dem Profilnamen erscheint.
   Über den danebenliegenden **😀-Knopf** öffnest du die macOS-Emoji-Auswahl.
 - **Profilname** – der Anzeigename des Profils (Pflichtfeld).
-- **WLAN-Name (optional)** – Trägst du hier ein WLAN ein, wird das Profil beim Verbinden
-  mit diesem Netzwerk automatisch geladen (sofern *Auto-Umschalten* aktiv ist).
+- **Netzwerk (optional)** – legt fest, bei welcher Verbindung das Profil automatisch
+  geladen wird (sofern *Auto-Umschalten* aktiv ist). Angeboten wird nur, was dein Mac
+  tatsächlich hat:
+  - **Keine Zuordnung** – das Profil wird nicht per Netzwerk umgeschaltet.
+  - **WLAN** – beim Verbinden mit dem gewählten WLAN.
+  - **Kabel (Ethernet)** – sobald ein Netzwerkkabel verbunden ist.
+  - **Beides (WLAN oder Kabel)** – bei Kabel *oder* beim gewählten WLAN.
+
+  Im Feld daneben wählst du das WLAN aus der Liste: oben das aktuell verbundene, darunter
+  die bekannten WLANs wie in den Systemeinstellungen. Ein Name kann auch eingetippt
+  werden. Das Feld ist nur bei *WLAN* und *Beides* aktiv.
 - **Was soll gespeichert/wiederhergestellt werden?** – Schalter für die Inhalte:
   - **Icon-Positionen**
   - **Versteckte Icons**
@@ -488,7 +504,7 @@ Wechsel. Dadurch können sich Browser-Beenden, Tab-Start und Fensterwiederherste
 **Das Auto-Umschalten per WLAN reagiert nicht.**
 Erlaube der App unter *Systemeinstellungen › Datenschutz & Sicherheit ›
 Ortungsdienste* den Zugriff. Ohne diese Freigabe gibt macOS den WLAN-Namen nicht
-heraus.
+heraus. Ist gleichzeitig ein Netzwerkkabel verbunden, haben Kabel-Profile Vorrang.
 
 **Ich erhalte keine Benachrichtigungen.**
 Die App nutzt die macOS-Mitteilungen und fragt beim ersten Mal nach einer Erlaubnis.

@@ -109,7 +109,7 @@ emoji, and the profile name.</p>
 <h3>💾 Save profile</h3>
 <ul>
   <li><strong>New profile …</strong> – Opens the profile creation window (name, emoji, contents, optional
-    Wi-Fi assignment and app selection).</li>
+    network assignment and app selection).</li>
   <li><strong>Overwrite: &lt;profile&gt;</strong> – Saves the current desktop state into an existing profile,
     keeping its previous settings.</li>
 </ul>
@@ -171,7 +171,7 @@ to clear the selection – no automatic restoration will then take place.</p>
 <p>Opens the edit window for the chosen profile. Important:</p>
 <ul>
   <li>Saved icon positions, hidden icons, and wallpaper are preserved – the desktop is not re-captured.</li>
-  <li>Only name, emoji, Wi-Fi assignment, app selection, system states, and content options are changed.</li>
+  <li>Only name, emoji, network assignment, app selection, system states, and content options are changed.</li>
   <li>Already saved system states and browser tabs are preserved; only newly added apps, system states,
     or browser tabs enabled for the first time are captured now.</li>
   <li>Profiles can also be renamed here; associated time and Wi-Fi rules are updated too.</li>
@@ -224,17 +224,20 @@ directly – regardless of which app is in the foreground.</p>
 <p>Chooses the modifier for the shortcuts: <kbd>⌘⌃</kbd>, <kbd>⌃</kbd>, <kbd>⌥⌘</kbd> or <kbd>⌃⇧</kbd>,
 each with 1–9.</p>
 
-<h3>🕓 Auto switch (time/Wi-Fi)</h3>
+<h3>🕓 Auto switch (time/network)</h3>
 <ul>
   <li><strong>Enabled</strong> – turns the whole auto-switching on/off.</li>
   <li><strong>➕ Add time rule …</strong> – Activates a profile at a specific time/time range.</li>
-  <li><strong>📶 Wi-Fi: set in 'Edit profile'</strong> – Set the Wi-Fi assignment per profile in the
-    <em>Wi-Fi name</em> field. When connecting to that network, the profile is activated.</li>
-  <li>Below, active Wi-Fi assignments and configured rules are listed; clicking a rule with the
+  <li><strong>🌐 Network (Wi-Fi/cable): set in 'Edit profile'</strong> – Set the network assignment per
+    profile in the <em>Network</em> field: Wi-Fi, cable, or both.</li>
+  <li>Below, active network assignments (e.g. <code>📶 Home → Profile</code>, <code>🔌 Cable → Profile</code>)
+    and configured rules are listed; clicking a rule with the
     <em>(delete)</em> suffix removes it.</li>
 </ul>
-<div class="note">Time rules take precedence over Wi-Fi assignments; time ranges across midnight (e.g.
-<code>22:00-06:00</code>) are supported. For Wi-Fi detection, macOS requires <strong>Location Services</strong>
+<div class="note">Time rules take precedence over network assignments; time ranges across midnight (e.g.
+<code>22:00-06:00</code>) are supported. <strong>Cable wins over Wi-Fi:</strong> while a network cable is
+connected, a <em>Cable</em> profile wins, then a <em>Both</em> profile; only without cable does the Wi-Fi
+decide. Older profiles with a Wi-Fi name are treated as <em>Wi-Fi</em> automatically. For Wi-Fi detection, macOS requires <strong>Location Services</strong>
 permission (<em>System Settings › Privacy &amp; Security › Location Services</em>); the app asks once when
 auto switch is enabled. Auto switch never launches or quits apps.</div>
 
@@ -267,8 +270,10 @@ interval.</p>
   <li><strong>Emoji field</strong> – the symbol before the profile name. The <strong>😀 button</strong> opens
     the macOS emoji picker.</li>
   <li><strong>Profile name</strong> – display name (required).</li>
-  <li><strong>Wi-Fi name (optional)</strong> – the profile is loaded automatically when connecting to this
-    network (if auto switch is active).</li>
+  <li><strong>Network (optional)</strong> – the profile is loaded automatically on this connection (if auto
+    switch is active). Only what your Mac has is offered: <em>No assignment</em>, <em>Wi-Fi</em>,
+    <em>Cable (Ethernet)</em>, or <em>Both (Wi-Fi or cable)</em>. Pick the Wi-Fi from the list next to it
+    (currently connected first, then the known networks as in System Settings) or type its name.</li>
   <li><strong>What to save/restore?</strong> – icon positions, hidden icons, wallpaper, apps, and browser tabs.</li>
   <li><strong>Browser tabs (Safari, Google Chrome, Microsoft Edge)</strong> – Saves all open web and local file tabs
     (<code>http(s)://</code>, <code>file://</code>) from currently
@@ -318,7 +323,7 @@ and automatic rules also cannot start a second switch during this time. This pre
 tab launch, and window restoration operations from overlapping.</p>
 <p><strong>Wi-Fi auto switch does not react.</strong><br>
 Allow the app under <em>Privacy &amp; Security › Location Services</em>. Without this permission macOS does
-not reveal the Wi-Fi name.</p>
+not reveal the Wi-Fi name. While a network cable is connected, cable profiles take precedence.</p>
 <p><strong>I do not receive notifications.</strong><br>
 The app uses macOS notifications and asks for permission the first time. If you denied it, enable it under
 <em>System Settings › Notifications › Desktop Profile Manager</em>.</p>

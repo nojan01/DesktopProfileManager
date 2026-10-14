@@ -19,7 +19,7 @@ Dieses Projekt steht unter der [MIT-Lizenz](LICENSE). Copyright © 2026 Norbert 
 - **Systemzustand** – Dark Mode, Lautstärke, Helligkeit, Dock und Desktop-Ansicht pro Profil sichern
 - **Icons verstecken** – Einzelne Desktop-Dateien ein-/ausblenden
 - **Tastenkombinationen** – Die ersten 9 Profile per Hotkey laden (Modifier wählbar: ⌘⌃, ⌃, ⌥⌘, ⌃⇧)
-- **Auto-Umschalten** – Profile automatisch nach Uhrzeit (Zeitregeln) oder nach verbundenem WLAN laden (WLAN-Erkennung benötigt die Ortungsdienste-Freigabe)
+- **Auto-Umschalten** – Profile automatisch nach Uhrzeit (Zeitregeln) oder Netzwerk laden: WLAN (Auswahl aus den bekannten WLANs), Kabel oder beides; Kabel hat Vorrang (WLAN-Erkennung benötigt die Ortungsdienste-Freigabe)
 - **Auto-Restore** – Automatische Wiederherstellung in konfigurierbaren Intervallen (5–240 Min)
 - **Autostart** – Optionaler Start beim Login via macOS LaunchAgent
 - **Menüleisten-App** – Läuft unauffällig in der Menüleiste (kein Dock-Icon)

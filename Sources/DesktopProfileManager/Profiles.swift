@@ -26,6 +26,7 @@ enum Profiles {
         let savedAt: String
         let emoji: String
         let wifiSSID: String
+        let networkMode: NetworkMode
         let url: URL
     }
 
@@ -122,6 +123,7 @@ enum Profiles {
                 savedAt: obj["saved_at"] as? String ?? "",
                 emoji: settings["emoji"] as? String ?? "",
                 wifiSSID: settings["wifi_ssid"] as? String ?? "",
+                networkMode: NetworkMode.from(settings: settings),
                 url: candidate.url
             ))
         }
@@ -168,6 +170,9 @@ enum Profiles {
             } else {
                 settings.removeValue(forKey: "system_state_keys")
             }
+            if let mode = settings["network_mode"], (mode as? String).flatMap(NetworkMode.init(rawValue:)) == nil {
+                settings.removeValue(forKey: "network_mode")
+            }
             result["settings"] = settings
         } else {
             result.removeValue(forKey: "settings")
@@ -194,6 +199,7 @@ enum Profiles {
         var systemStateKeys: [String] = []
         var emoji = ""
         var wifiSSID = ""
+        var networkMode: NetworkMode = .none
     }
 
     private static func settingsObject(_ options: SaveOptions, includedApps: Any) -> [String: Any] {
@@ -210,7 +216,10 @@ enum Profiles {
             "included_apps": includedApps,
             "system_state_keys": options.systemStateKeys,
             "emoji": options.emoji,
-            "wifi_ssid": options.wifiSSID,
+            // Ohne WLAN-Bedingung bleibt `wifi_ssid` leer, damit ältere Versionen
+            // ein Kabel-Profil nicht als WLAN-Profil deuten.
+            "wifi_ssid": options.networkMode.usesWiFi ? options.wifiSSID : "",
+            "network_mode": options.networkMode.rawValue,
         ]
     }
 

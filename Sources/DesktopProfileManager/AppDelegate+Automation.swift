@@ -1,7 +1,7 @@
 import AppKit
 import ApplicationServices
 
-/// Globale Kurzbefehle (⌘⌃1–9) und automatisches Umschalten nach Zeit/WLAN.
+/// Globale Kurzbefehle (⌘⌃1–9) und automatisches Umschalten nach Zeit/Netzwerk.
 extension AppDelegate {
 
     // MARK: - Hotkey-Helfer
@@ -150,11 +150,19 @@ extension AppDelegate {
         return nil
     }
 
-    /// WLAN-Zuordnung der Profile hat Vorrang vor älteren WLAN-Regeln.
-    static func wifiTarget(ssid: String?, profiles: [(name: String, ssid: String)],
-                           rules: [[String: Any]]) -> String? {
+    /// Ermittelt das Profil zur aktuellen Netzwerkverbindung. Ist ein Kabel
+    /// verbunden, gewinnt eine Kabel-Zuordnung (erst „Kabel“, dann „Beides“)
+    /// vor dem WLAN – auch wenn das WLAN gleichzeitig verbunden ist. Danach
+    /// folgen WLAN-Zuordnungen („WLAN“, dann „Beides“) und ältere WLAN-Regeln.
+    static func networkTarget(ssid: String?, ethernetConnected: Bool,
+                              profiles: [NetworkAssignment], rules: [[String: Any]]) -> String? {
+        if ethernetConnected {
+            if let match = profiles.first(where: { $0.mode == .ethernet }) { return match.name }
+            if let match = profiles.first(where: { $0.mode == .both }) { return match.name }
+        }
         guard let ssid, !ssid.isEmpty else { return nil }
-        if let match = profiles.first(where: { $0.ssid == ssid }) { return match.name }
+        if let match = profiles.first(where: { $0.mode == .wifi && $0.ssid == ssid }) { return match.name }
+        if let match = profiles.first(where: { $0.mode == .both && $0.ssid == ssid }) { return match.name }
         for rule in rules where (rule["type"] as? String) == "wifi" {
             if let profile = rule["profile"] as? String, ssid == rule["value"] as? String {
                 return profile
@@ -166,10 +174,13 @@ extension AppDelegate {
     private func autoSwitchTick() {
         guard !isAutoSwitchCheckRunning else { return }
         let rules = config.get("auto_switch_rules", [[String: Any]]())
-        let wifiProfiles = Profiles.list().filter { !$0.wifiSSID.isEmpty }
-            .map { (name: $0.name, ssid: $0.wifiSSID) }
-        let needsWiFi = !wifiProfiles.isEmpty || rules.contains { ($0["type"] as? String) == "wifi" }
-        if rules.isEmpty && !needsWiFi { return }
+        let networkProfiles = Profiles.list().filter { $0.networkMode != .none }
+            .map { NetworkAssignment(name: $0.name, mode: $0.networkMode, ssid: $0.wifiSSID) }
+        let hasWiFiRules = rules.contains { ($0["type"] as? String) == "wifi" }
+        let needsWiFi = hasWiFiRules || networkProfiles.contains { $0.mode.usesWiFi }
+        let needsEthernet = networkProfiles.contains { $0.mode.usesEthernet }
+        let needsNetwork = needsWiFi || needsEthernet
+        if rules.isEmpty && !needsNetwork { return }
 
         let now = Calendar.current.dateComponents([.hour, .minute], from: Date())
         let nowMinutes = (now.hour ?? 0) * 60 + (now.minute ?? 0)
@@ -178,19 +189,21 @@ extension AppDelegate {
             applyAutoSwitch(target)
             return
         }
-        guard needsWiFi else {
+        guard needsNetwork else {
             applyAutoSwitch(nil)
             return
         }
-        // Die SSID-Abfrage startet ggf. Hilfsprozesse und darf das Menü nicht blockieren.
+        // Die Netzwerkabfrage startet ggf. Hilfsprozesse und darf das Menü nicht blockieren.
         isAutoSwitchCheckRunning = true
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            let ssid = WiFi.currentSSID()
+            let ssid = needsWiFi ? WiFi.currentSSID() : nil
+            let wired = needsEthernet && Ethernet.isConnected()
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.isAutoSwitchCheckRunning = false
                 guard self.config.get("auto_switch_enabled", false) else { return }
-                self.applyAutoSwitch(Self.wifiTarget(ssid: ssid, profiles: wifiProfiles, rules: rules))
+                self.applyAutoSwitch(Self.networkTarget(ssid: ssid, ethernetConnected: wired,
+                                                        profiles: networkProfiles, rules: rules))
             }
         }
     }
@@ -218,8 +231,8 @@ extension AppDelegate {
             lastAutoSwitch = nil
             startAutoSwitch()
             Notifier.show(L("Auto-Umschalten aktiviert", "Auto switch enabled"),
-                          L("Profile werden je nach Zeit/WLAN automatisch gewechselt.",
-                            "Profiles are switched automatically based on time/Wi-Fi."))
+                          L("Profile werden je nach Zeit/Netzwerk automatisch gewechselt.",
+                            "Profiles are switched automatically based on time/network."))
         } else {
             stopAutoSwitch()
             Notifier.show(L("Auto-Umschalten deaktiviert", "Auto switch disabled"), "")
