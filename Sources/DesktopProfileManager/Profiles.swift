@@ -257,8 +257,14 @@ enum Profiles {
         let hidden = options.withHidden ? DesktopIcons.getHiddenItems() : []
         let wallpaper = options.withWallpaper ? Wallpaper.get() : []
         let runningBrowsers = BrowserTabs.runningBundleIDs()
-        let capturedBrowserTabs = options.withBrowserTabs ? BrowserTabs.capture() : [:]
-        let capturedBrowserWindows = options.withBrowserTabs ? BrowserTabs.captureWindowPositions() : [:]
+        let browserSelection = BrowserTabs.selectedBrowsers(
+            appNames: options.includedApps,
+            bundleIDs: Set(Apps.getRunning().filter { options.includedApps?.contains($0.name) ?? false }
+                .compactMap(\.bundleID)))
+        let capturedBrowserTabs = options.withBrowserTabs
+            ? BrowserTabs.capture(selection: browserSelection) : [:]
+        let capturedBrowserWindows = options.withBrowserTabs
+            ? BrowserTabs.captureWindowPositions(selection: browserSelection) : [:]
         let displayLayout = Displays.getLayout().map { ["x": $0.x, "y": $0.y, "w": $0.w, "h": $0.h] }
         let systemState = SystemState.capture(keys: options.systemStateKeys)
 
@@ -280,12 +286,13 @@ enum Profiles {
         }
         let savedTabs = BrowserTabs.tabsForSave(
             captured: capturedBrowserTabs,
-            existing: existing?["browser_tabs"],
+            existing: BrowserTabs.limited(BrowserTabs.parse(existing?["browser_tabs"]), to: browserSelection),
             captureRequested: options.withBrowserTabs,
             runningBundleIDs: runningBrowsers)
         let savedBrowserWindows = BrowserTabs.windowPositionsForSave(
             captured: capturedBrowserWindows,
-            existing: existing?["browser_windows"],
+            existing: BrowserTabs.limited(BrowserTabs.parseWindowPositions(existing?["browser_windows"]),
+                                          to: browserSelection),
             captureRequested: options.withBrowserTabs,
             runningBundleIDs: runningBrowsers)
 
@@ -333,8 +340,8 @@ enum Profiles {
     /// erfassen: gespeicherte Icon-Positionen, versteckte Icons, Hintergrundbild,
     /// bereits gespeicherte Systemzustände und Browser-Tabs bleiben erhalten.
     /// Aktualisiert werden Name, Optionen, App-Auswahl, Emoji und WLAN. Nur neu
-    /// hinzugefügte Apps, Systemzustände bzw. erstmals aktivierte Browser-Tabs
-    /// werden aktuell erfasst.
+    /// hinzugefügte Apps, Systemzustände bzw. Tabs neu ausgewählter Browser
+    /// werden aktuell erfasst; abgewählte Browser verlieren ihre Tabs.
     static func applyEdit(oldName: String, newName: String, options: SaveOptions) -> String? {
         guard let oldURL = profilePath(oldName),
               var data = load(oldName) else {
@@ -378,11 +385,26 @@ enum Profiles {
             keys: options.systemStateKeys,
             capture: { SystemState.capture(keys: $0) })
 
-        let storedTabs = BrowserTabs.parse(data["browser_tabs"])
-        if options.withBrowserTabs && storedTabs.isEmpty {
-            data["browser_tabs"] = BrowserTabs.capture()
-            data["browser_windows"] = BrowserTabs.captureWindowPositions()
+        let browserSelection = options.includedApps == nil ? nil : BrowserTabs.selectedBrowsers(
+            appNames: includedApps,
+            bundleIDs: Set(parseApps(data["apps"]).compactMap(\.bundleID)))
+        var tabs = BrowserTabs.limited(BrowserTabs.parse(data["browser_tabs"]), to: browserSelection)
+        var windows = BrowserTabs.limited(BrowserTabs.parseWindowPositions(data["browser_windows"]),
+                                          to: browserSelection)
+        if options.withBrowserTabs {
+            if let selection = browserSelection {
+                let missing = selection.subtracting(tabs.keys)
+                if !missing.isEmpty {
+                    tabs.merge(BrowserTabs.capture(selection: missing)) { old, _ in old }
+                    windows.merge(BrowserTabs.captureWindowPositions(selection: missing)) { old, _ in old }
+                }
+            } else if tabs.isEmpty {
+                tabs = BrowserTabs.capture()
+                windows = BrowserTabs.captureWindowPositions()
+            }
         }
+        data["browser_tabs"] = tabs
+        data["browser_windows"] = windows
 
         data["settings"] = settingsObject(options, includedApps: includedApps)
         data["profile"] = newName
@@ -472,9 +494,16 @@ enum Profiles {
                                includeApps: includeApps, iconsOnly: iconsOnly)
 
         let profileApps = parseApps(data["apps"])
-        let savedBrowserTabs = plan.browserTabs ? BrowserTabs.parse(data["browser_tabs"]) : [:]
+        // Nicht ausgewählte Browser werden nie neu gestartet, auch wenn ältere
+        // Speicherstände noch Tabs für sie enthalten.
+        let browserSelection = BrowserTabs.selectedBrowsers(
+            appNames: settings["included_apps"] as? [String],
+            bundleIDs: Set(profileApps.compactMap(\.bundleID)))
+        let profileBrowserTabs = BrowserTabs.limited(BrowserTabs.parse(data["browser_tabs"]), to: browserSelection)
+        let savedBrowserTabs = plan.browserTabs ? profileBrowserTabs : [:]
         var savedBrowserWindows = plan.browserTabs
-            ? BrowserTabs.parseWindowPositions(data["browser_windows"]) : [:]
+            ? BrowserTabs.limited(BrowserTabs.parseWindowPositions(data["browser_windows"]), to: browserSelection)
+            : [:]
         // Abwärtskompatibilität: ältere Profile haben Browser-Fenster nur
         // innerhalb der allgemeinen App-Daten gespeichert.
         if plan.browserTabs && savedBrowserWindows.isEmpty {
@@ -539,8 +568,7 @@ enum Profiles {
             // ausgeblendete Anwendung (z. B. Thunderbird) wieder einblenden.
             // Browser mit gespeicherten Tabs gehören zum Profil, auch wenn die
             // Tabs bei diesem Auslöser nicht wiederhergestellt wurden.
-            let keep = appsToKeep(profileApps: profileApps,
-                                  browserTabs: BrowserTabs.parse(data["browser_tabs"]))
+            let keep = appsToKeep(profileApps: profileApps, browserTabs: profileBrowserTabs)
             if quitOthers { _ = Apps.quitOthers(keep: keep) }
             else if hideOthers { _ = Apps.hideOthers(keep: keep) }
 

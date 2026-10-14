@@ -34,11 +34,29 @@ enum BrowserTabs {
         supportedBrowsers.first { $0.bundleID == bundleID }?.name ?? bundleID
     }
 
-    /// Liest Web- und lokale Datei-Tabs aktuell laufender unterstützter Browser aus.
-    static func capture() -> [String: [String]] {
+    /// Browser-Tabs gehören zur App-Auswahl des Profils: Nur dort ausgewählte
+    /// Browser werden mit Tabs gespeichert und neu gestartet. `nil` bedeutet
+    /// keine App-Auswahl (ältere Profile) und lässt alle Browser zu.
+    static func selectedBrowsers(appNames: [String]?, bundleIDs: Set<String>) -> Set<String>? {
+        guard let appNames else { return nil }
+        let names = Set(appNames)
+        return Set(supportedBrowsers
+            .filter { bundleIDs.contains($0.bundleID) || names.contains($0.name) }
+            .map(\.bundleID))
+    }
+
+    static func limited<Value>(_ values: [String: Value], to selection: Set<String>?) -> [String: Value] {
+        guard let selection else { return values }
+        return values.filter { selection.contains($0.key) }
+    }
+
+    /// Liest Web- und lokale Datei-Tabs aktuell laufender unterstützter Browser
+    /// aus, bei `selection` nur die dort genannten.
+    static func capture(selection: Set<String>? = nil) -> [String: [String]] {
         let running = runningBundleIDs()
         var result: [String: [String]] = [:]
-        for browser in supportedBrowsers where running.contains(browser.bundleID) {
+        for browser in supportedBrowsers
+        where running.contains(browser.bundleID) && (selection?.contains(browser.bundleID) ?? true) {
             guard let output = Shell.runAppleScript(captureScript(browserName: browser.name)) else { continue }
             let urls = validURLs(output.split(separator: "\n").map(String.init))
             if !urls.isEmpty { result[browser.bundleID] = urls }
@@ -71,15 +89,16 @@ enum BrowserTabs {
         """
     }
 
-    /// Erfasst Browser-Fenster unabhängig davon, ob der Browser in der allgemeinen
-    /// App-Auswahl des Profils enthalten ist. Die Zuordnung erfolgt über die
-    /// Prozess-ID, weil Prozessnamen lokalisiert oder abweichend sein können.
-    static func captureWindowPositions() -> [String: [[String: Int]]] {
+    /// Erfasst Browser-Fenster (bei `selection` nur die dort genannten). Die
+    /// Zuordnung erfolgt über die Prozess-ID, weil Prozessnamen lokalisiert oder
+    /// abweichend sein können.
+    static func captureWindowPositions(selection: Set<String>? = nil) -> [String: [[String: Int]]] {
         let windowsByPID = Apps.getWindowsByPID()
         var result: [String: [[String: Int]]] = [:]
         for application in NSWorkspace.shared.runningApplications {
             guard let bundleID = application.bundleIdentifier,
                   supportedBrowsers.contains(where: { $0.bundleID == bundleID }),
+                  selection?.contains(bundleID) ?? true,
                   let windows = windowsByPID[application.processIdentifier],
                   !windows.isEmpty else { continue }
             result[bundleID, default: []].append(contentsOf: windows)

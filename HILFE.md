@@ -442,8 +442,10 @@ Fenster mit folgenden Feldern:
   - **Hintergrundbild**
   - **Apps**
   - **Browser-Tabs (Safari, Google Chrome, Microsoft Edge)** – Speichert alle geöffneten Web- und
-    lokalen Datei-Tabs (`http(s)://`, `file://`) der aktuell laufenden unterstützten
-    Browser sowie Position und Größe des Browserfensters. Beim Wiederherstellen beendet die App
+    lokalen Datei-Tabs (`http(s)://`, `file://`) der unterstützten Browser, die in der
+    **App-Liste ausgewählt** sind, sowie Position und Größe des Browserfensters. Nicht
+    ausgewählte Browser werden weder gespeichert noch beim Wechsel neu gestartet; wählst du
+    beim Bearbeiten einen Browser ab, werden seine Tabs entfernt. Beim Wiederherstellen beendet die App
     den betreffenden Browser regulär vollständig und startet ihn anschließend einmal mit allen
     gespeicherten Profil-Tabs neu. Andere Apps werden vorher bereinigt, damit der neu gestartete
     Browser nicht anschließend ausgeblendet oder beendet wird. Reagiert der Browser innerhalb von
@@ -503,8 +505,8 @@ Erteile der App die Berechtigung unter *Systemeinstellungen › Datenschutz &
 Sicherheit › Bedienungshilfen*.
 
 **Meine Browser-Tabs werden nicht gespeichert oder geöffnet.**
-Aktiviere im Profil *Browser-Tabs (Safari, Chrome, Edge)*, lasse den Browser beim
-Speichern geöffnet und aktiviere *Apps beim Wiederherstellen starten*. Erteile die
+Aktiviere im Profil *Browser-Tabs (Safari, Chrome, Edge)*, wähle den Browser in der
+App-Liste des Profils aus, lasse ihn beim Speichern geöffnet und aktiviere *Apps beim Wiederherstellen starten*. Erteile die
 angefragte Automatisierungsberechtigung. Beim Wiederherstellen wird der Browser regulär beendet
 und mit den Profil-Tabs neu gestartet. Verhindert ein Dialog, Download oder ungespeicherter Inhalt
 das Beenden länger als 15 Sekunden, bricht die App ohne erzwungenes Beenden ab. Firefox-Tabs

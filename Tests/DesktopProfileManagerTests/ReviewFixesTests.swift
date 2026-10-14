@@ -163,6 +163,24 @@ final class ReviewFixesTests: XCTestCase {
         XCTAssertEqual(keep.compactMap(\.bundleID), ["com.apple.mail", "com.google.Chrome"])
     }
 
+    func testOnlyBrowsersFromAppSelectionKeepTabs() {
+        let tabs = ["com.apple.Safari": ["https://a.example"], "com.google.Chrome": ["https://b.example"]]
+        // Kein Browser in der App-Auswahl: kein Browser wird neu gestartet.
+        let none = BrowserTabs.selectedBrowsers(appNames: ["ChatGPT", "GitHub Copilot"],
+                                                bundleIDs: ["com.github.copilot"])
+        XCTAssertEqual(none, [])
+        XCTAssertTrue(BrowserTabs.limited(tabs, to: none).isEmpty)
+        // Auswahl über den Namen oder die Bundle-ID.
+        let chrome = BrowserTabs.selectedBrowsers(appNames: ["Google Chrome"], bundleIDs: [])
+        XCTAssertEqual(Array(BrowserTabs.limited(tabs, to: chrome).keys), ["com.google.Chrome"])
+        let safari = BrowserTabs.selectedBrowsers(appNames: ["Safari Browser"], bundleIDs: ["com.apple.Safari"])
+        XCTAssertEqual(Array(BrowserTabs.limited(tabs, to: safari).keys), ["com.apple.Safari"])
+        // Ältere Profile ohne App-Auswahl behalten alle Browser.
+        let legacy = BrowserTabs.selectedBrowsers(appNames: nil, bundleIDs: [])
+        XCTAssertNil(legacy)
+        XCTAssertEqual(BrowserTabs.limited(tabs, to: legacy).count, 2)
+    }
+
     func testVisibilityChangesOnlyContainDifferences() {
         let current = [
             DesktopIcons.DesktopItem(name: "a.txt", hidden: false),

@@ -174,7 +174,12 @@ final class ProfileSetupWindow: NSObject, NSWindowDelegate {
         for (key, text) in optionDefs {
             let fallback = key != "capture_browser_tabs"
             let on = isEdit ? (savedSettings[key] as? Bool ?? fallback) : true
-            optionSwitches.append((key, addSwitch(text, on: on)))
+            let toggle = addSwitch(text, on: on)
+            if key == "capture_browser_tabs" {
+                toggle.toolTip = L("Nur für Browser, die unten in der App-Liste ausgewählt sind.",
+                                   "Only for browsers selected in the app list below.")
+            }
+            optionSwitches.append((key, toggle))
         }
         yCursor -= 6
 
