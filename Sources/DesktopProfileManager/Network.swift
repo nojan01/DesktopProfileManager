@@ -22,6 +22,8 @@ enum NetworkMode: String, CaseIterable {
 
     var usesWiFi: Bool { self == .wifi || self == .both }
     var usesEthernet: Bool { self == .ethernet || self == .both }
+    /// Nur bei eindeutiger Verbindung kann das WLAN passend geschaltet werden.
+    var canSwitchWiFi: Bool { self == .wifi || self == .ethernet }
 
     var title: String {
         switch self {
@@ -93,6 +95,74 @@ enum Ethernet {
             let key = "State:/Network/Interface/\(bsd)/Link" as CFString
             let link = SCDynamicStoreCopyValue(store, key) as? [String: Any]
             return link?["Active"] as? Bool ?? false
+        }
+    }
+}
+
+/// Schaltet das WLAN passend zur Netzwerk-Zuordnung eines Profils: „Kabel“
+/// schaltet es aus, „WLAN“ ein. Das Kabel bleibt immer unangetastet, weil
+/// macOS dafür bei jeder Änderung ein Administratorpasswort verlangt.
+enum WiFiSwitch {
+    enum Action: Equatable { case none, turnOn, turnOff, keepNoCable }
+
+    enum Outcome: Equatable {
+        /// Für dieses Profil wird das WLAN nicht geschaltet.
+        case unchanged
+        /// Das WLAN ist eingeschaltet (war es schon oder wurde eingeschaltet).
+        case wifiOn
+        /// Die App hat das WLAN ausgeschaltet.
+        case wifiOff
+        /// Kabel-Profil ohne verbundenes Kabel: Das WLAN bleibt an.
+        case keptNoCable
+        case failed
+    }
+
+    /// Was beim Überwachen nach dem Ausschalten zu tun ist.
+    enum FailoverAction: Equatable { case keepWatching, stopWatching, turnOnWiFi }
+
+    static let settingsKey = "network_switch_wifi"
+
+    static func isEnabled(settings: [String: Any]) -> Bool {
+        settings[settingsKey] as? Bool == true && NetworkMode.from(settings: settings).canSwitchWiFi
+    }
+
+    /// WLAN wird nur ausgeschaltet, wenn das Kabel tatsächlich verbunden ist –
+    /// sonst stünde der Mac ohne Netzwerk da.
+    static func action(mode: NetworkMode, ethernetConnected: Bool) -> Action {
+        switch mode {
+        case .wifi: return .turnOn
+        case .ethernet: return ethernetConnected ? .turnOff : .keepNoCable
+        case .none, .both: return .none
+        }
+    }
+
+    /// Prüfungen in Folge ohne Kabel, bevor das WLAN zurückkommt. Nach dem
+    /// Aufwachen braucht der Kabel-Link einige Sekunden.
+    static let requiredMissedChecks = 4
+
+    /// Hat der Nutzer das WLAN selbst wieder eingeschaltet, endet die
+    /// Überwachung; fehlt das Kabel dauerhaft, kommt das WLAN zurück.
+    static func failoverAction(wifiPoweredOn: Bool, ethernetConnected: Bool,
+                               previousMissedChecks: Int) -> FailoverAction {
+        if wifiPoweredOn { return .stopWatching }
+        if ethernetConnected { return .keepWatching }
+        return previousMissedChecks + 1 >= requiredMissedChecks ? .turnOnWiFi : .keepWatching
+    }
+
+    /// Kann Hilfsprozesse starten – nicht auf dem Main Thread aufrufen.
+    static func apply(settings: [String: Any]) -> Outcome {
+        guard isEnabled(settings: settings), WiFi.isAvailable else { return .unchanged }
+        let mode = NetworkMode.from(settings: settings)
+        let wired = mode == .ethernet && Ethernet.isConnected()
+        switch action(mode: mode, ethernetConnected: wired) {
+        case .none: return .unchanged
+        case .keepNoCable: return .keptNoCable
+        case .turnOn:
+            return WiFi.isPoweredOn || WiFi.setPower(true) ? .wifiOn : .failed
+        case .turnOff:
+            // War das WLAN schon aus, hat es nicht die App ausgeschaltet.
+            guard WiFi.isPoweredOn else { return .unchanged }
+            return WiFi.setPower(false) ? .wifiOff : .failed
         }
     }
 }

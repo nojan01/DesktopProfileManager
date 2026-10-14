@@ -237,7 +237,9 @@ each with 1–9.</p>
 <div class="note">Time rules take precedence over network assignments; time ranges across midnight (e.g.
 <code>22:00-06:00</code>) are supported. <strong>Cable wins over Wi-Fi:</strong> while a network cable is
 connected, a <em>Cable</em> profile wins, then a <em>Both</em> profile; only without cable does the Wi-Fi
-decide. Older profiles with a Wi-Fi name are treated as <em>Wi-Fi</em> automatically. For Wi-Fi detection, macOS requires <strong>Location Services</strong>
+decide. Older profiles with a Wi-Fi name are treated as <em>Wi-Fi</em> automatically. With
+<strong>Switch Wi-Fi accordingly</strong> the connection follows along: plugging in the cable loads the cable
+profile and turns Wi-Fi off; unplugging it turns Wi-Fi back on and loads the Wi-Fi profile. For Wi-Fi detection, macOS requires <strong>Location Services</strong>
 permission (<em>System Settings › Privacy &amp; Security › Location Services</em>); the app asks once when
 auto switch is enabled. Auto switch never launches or quits apps.</div>
 
@@ -274,6 +276,13 @@ interval.</p>
     switch is active). Only what your Mac has is offered: <em>No assignment</em>, <em>Wi-Fi</em>,
     <em>Cable (Ethernet)</em>, or <em>Both (Wi-Fi or cable)</em>. Pick the Wi-Fi from the list next to it
     (currently connected first, then the known networks as in System Settings) or type its name.</li>
+  <li><strong>Switch Wi-Fi accordingly</strong> (optional, only for <em>Wi-Fi</em> or <em>Cable</em>) – when
+    switching to this profile, <em>Cable</em> turns Wi-Fi <strong>off</strong> (only while a network cable is
+    connected) and <em>Wi-Fi</em> turns Wi-Fi <strong>on</strong>. The cable is never switched because macOS
+    asks for an administrator password every time. If the cable is disconnected after the app turned Wi-Fi
+    off, the app turns Wi-Fi back on after about 12 seconds. Wi-Fi is only switched on profile changes via
+    menu, widget or auto switch, not on auto restore (login, wake, interval). AirDrop and Handoff
+    need Wi-Fi, so the option is off by default.</li>
   <li><strong>What to save/restore?</strong> – icon positions, hidden icons, wallpaper, apps, and browser tabs.</li>
   <li><strong>Browser tabs (Safari, Google Chrome, Microsoft Edge)</strong> – Saves all open web and local file tabs
     (<code>http(s)://</code>, <code>file://</code>) from currently

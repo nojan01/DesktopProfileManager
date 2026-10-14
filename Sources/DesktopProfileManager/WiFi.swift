@@ -39,6 +39,21 @@ enum WiFi {
     /// Hat der Mac eine WLAN-Schnittstelle?
     static var isAvailable: Bool { !interfaceNames().isEmpty }
 
+    static var isPoweredOn: Bool { CWWiFiClient.shared().interface()?.powerOn() ?? false }
+
+    /// Schaltet das WLAN ein oder aus; dafür sind keine Administratorrechte nötig.
+    @discardableResult
+    static func setPower(_ on: Bool) -> Bool {
+        guard let iface = CWWiFiClient.shared().interface() else { return false }
+        do {
+            try iface.setPower(on)
+        } catch {
+            guard let dev = iface.interfaceName else { return false }
+            Shell.run("/usr/sbin/networksetup", ["-setairportpower", dev, on ? "on" : "off"], timeout: 10)
+        }
+        return iface.powerOn() == on
+    }
+
     private static func interfaceNames() -> [String] {
         CWWiFiClient.shared().interfaces()?.compactMap { $0.interfaceName } ?? []
     }

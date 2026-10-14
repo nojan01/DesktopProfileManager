@@ -349,6 +349,9 @@ Gut zu wissen:
   (zuerst Profile mit *WLAN*, dann mit *Beides*). Bei mehreren passenden Profilen gilt die
   Reihenfolge der Profilliste.
 - Ältere Profile mit WLAN-Namen werden automatisch als *WLAN* übernommen.
+- Mit **WLAN passend schalten** im Profil wechselt die Verbindung mit: Wird das Kabel
+  eingesteckt, lädt das Auto-Umschalten das Kabel-Profil und schaltet das WLAN aus; wird
+  es getrennt, kommt das WLAN zurück und das passende WLAN-Profil wird geladen.
 - Für die **WLAN-Erkennung** verlangt macOS die Freigabe der **Ortungsdienste**. Beim
   Aktivieren des Auto-Umschaltens fragt die App einmalig danach; ohne Freigabe meldet
   macOS keinen WLAN-Namen und WLAN-Zuordnungen greifen nicht (Kabel funktioniert auch
@@ -418,6 +421,21 @@ Fenster mit folgenden Feldern:
   Im Feld daneben wählst du das WLAN aus der Liste: oben das aktuell verbundene, darunter
   die bekannten WLANs wie in den Systemeinstellungen. Ein Name kann auch eingetippt
   werden. Das Feld ist nur bei *WLAN* und *Beides* aktiv.
+- **WLAN passend schalten** (optional, nur bei *WLAN* oder *Kabel*) – beim Wechsel zu
+  diesem Profil schaltet die App das WLAN um:
+  - **Kabel** – das WLAN wird **ausgeschaltet**, aber nur, wenn ein Netzwerkkabel
+    verbunden ist. Ohne Kabel bleibt das WLAN an und die Mitteilung weist darauf hin.
+  - **WLAN** – das WLAN wird **eingeschaltet**.
+  - Das **Kabel wird nie geschaltet** – macOS verlangt dafür bei jeder Änderung ein
+    Administratorpasswort.
+  - **Sicherheitsnetz:** Hat die App das WLAN ausgeschaltet und wird das Kabel danach
+    getrennt, schaltet sie das WLAN nach etwa 12 Sekunden automatisch wieder ein und
+    meldet das. Schaltest du das WLAN selbst wieder ein, endet die Überwachung.
+  - Geschaltet wird nur beim Profilwechsel über Menü, Widget oder Auto-Umschalten –
+    nicht beim Auto-Restore (Login, Aufwachen, Intervall). Profile
+    ohne diese Option lassen das WLAN unverändert.
+  - Ohne WLAN funktionieren **AirDrop** und **Handoff** nicht. Deshalb ist die Option
+    standardmäßig aus.
 - **Was soll gespeichert/wiederhergestellt werden?** – Schalter für die Inhalte:
   - **Icon-Positionen**
   - **Versteckte Icons**

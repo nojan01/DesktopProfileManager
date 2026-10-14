@@ -208,6 +208,90 @@ extension AppDelegate {
         }
     }
 
+    // MARK: - WLAN passend schalten
+
+    static let wifiOffByAppKey = "wifi_off_by_app"
+
+    /// Übernimmt das Ergebnis der WLAN-Schaltung eines Profils und liefert ggf.
+    /// einen Hinweis für die Mitteilung.
+    func handleWiFiSwitch(_ outcome: WiFiSwitch.Outcome) -> String? {
+        switch outcome {
+        case .unchanged:
+            return nil
+        case .wifiOn:
+            setWiFiOffByApp(false)
+            return nil
+        case .wifiOff:
+            setWiFiOffByApp(true)
+            return nil
+        case .keptNoCable:
+            return L("Kein Netzwerkkabel verbunden – WLAN bleibt eingeschaltet.",
+                     "No network cable connected – Wi-Fi stays on.")
+        case .failed:
+            return L("WLAN konnte nicht umgeschaltet werden.", "Wi-Fi could not be switched.")
+        }
+    }
+
+    private func setWiFiOffByApp(_ value: Bool) {
+        if config.get(Self.wifiOffByAppKey, false) != value {
+            config.set(Self.wifiOffByAppKey, value)
+            config.save()
+        }
+        if value { startWiFiFailoverWatch() } else { stopWiFiFailoverWatch() }
+    }
+
+    /// Solange die App das WLAN ausgeschaltet hat, wird das Kabel überwacht.
+    /// Bleibt es mehrere Prüfungen lang getrennt, schaltet die App das WLAN
+    /// wieder ein (kurze Aussetzer, z. B. nach dem Aufwachen, zählen nicht).
+    func startWiFiFailoverWatch() {
+        guard wifiFailoverTimer == nil else { return }
+        wifiFailoverMissedChecks = 0
+        wifiFailoverTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+            self?.wifiFailoverTick()
+        }
+        wifiFailoverTick()
+    }
+
+    func stopWiFiFailoverWatch() {
+        wifiFailoverTimer?.invalidate()
+        wifiFailoverTimer = nil
+    }
+
+    private func wifiFailoverTick() {
+        guard !isWiFiFailoverCheckRunning else { return }
+        isWiFiFailoverCheckRunning = true
+        let missed = wifiFailoverMissedChecks
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let wired = Ethernet.isConnected()
+            let action = WiFiSwitch.failoverAction(wifiPoweredOn: WiFi.isPoweredOn, ethernetConnected: wired,
+                                                   previousMissedChecks: missed)
+            let restored = action == .turnOnWiFi && WiFi.setPower(true)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isWiFiFailoverCheckRunning = false
+                self.wifiFailoverMissedChecks = wired ? 0 : missed + 1
+                switch action {
+                case .keepWatching:
+                    return
+                case .stopWatching:
+                    self.setWiFiOffByApp(false)
+                case .turnOnWiFi:
+                    // Fehlgeschlagen: beim nächsten Durchlauf erneut versuchen.
+                    guard restored else { return }
+                    self.setWiFiOffByApp(false)
+                    Notifier.show(L("WLAN wieder eingeschaltet", "Wi-Fi turned back on"),
+                                  L("Das Netzwerkkabel wurde getrennt.", "The network cable was disconnected."))
+                    // Nach der WLAN-Anmeldung passendes Profil wählen.
+                    if self.config.get("auto_switch_enabled", false) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
+                            self?.autoSwitchTick()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// Ohne passende Regel wird der Merker zurückgesetzt, damit ein späteres
     /// erneutes Eintreten (z. B. Rückkehr ins Heim-WLAN) wieder umschaltet.
     private func applyAutoSwitch(_ target: String?) {

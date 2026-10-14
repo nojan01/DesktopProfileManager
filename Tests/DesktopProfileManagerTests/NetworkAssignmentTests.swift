@@ -85,6 +85,54 @@ final class NetworkAssignmentTests: XCTestCase {
         XCTAssertFalse(Ethernet.isWiredService(type: "Bridge", displayName: "Thunderbolt Bridge"))
     }
 
+    func testWiFiSwitchActions() {
+        XCTAssertEqual(WiFiSwitch.action(mode: .wifi, ethernetConnected: false), .turnOn)
+        XCTAssertEqual(WiFiSwitch.action(mode: .wifi, ethernetConnected: true), .turnOn)
+        XCTAssertEqual(WiFiSwitch.action(mode: .ethernet, ethernetConnected: true), .turnOff)
+        // Ohne Kabel bliebe der Mac sonst ohne Netzwerk.
+        XCTAssertEqual(WiFiSwitch.action(mode: .ethernet, ethernetConnected: false), .keepNoCable)
+        XCTAssertEqual(WiFiSwitch.action(mode: .both, ethernetConnected: true), .none)
+        XCTAssertEqual(WiFiSwitch.action(mode: .none, ethernetConnected: true), .none)
+    }
+
+    func testWiFiSwitchOnlyWhenEnabledForClearMode() {
+        XCTAssertTrue(WiFiSwitch.isEnabled(settings: ["network_mode": "ethernet", "network_switch_wifi": true]))
+        XCTAssertTrue(WiFiSwitch.isEnabled(settings: ["network_mode": "wifi", "wifi_ssid": "Home",
+                                                      "network_switch_wifi": true]))
+        XCTAssertFalse(WiFiSwitch.isEnabled(settings: ["network_mode": "ethernet"]))
+        XCTAssertFalse(WiFiSwitch.isEnabled(settings: ["network_mode": "both", "wifi_ssid": "Home",
+                                                       "network_switch_wifi": true]))
+        // „WLAN“ ohne Namen ist keine Zuordnung.
+        XCTAssertFalse(WiFiSwitch.isEnabled(settings: ["network_mode": "wifi", "network_switch_wifi": true]))
+    }
+
+    func testFailoverWaitsForPersistentCableLoss() {
+        let required = WiFiSwitch.requiredMissedChecks
+        XCTAssertEqual(WiFiSwitch.failoverAction(wifiPoweredOn: true, ethernetConnected: false,
+                                                 previousMissedChecks: 0), .stopWatching)
+        XCTAssertEqual(WiFiSwitch.failoverAction(wifiPoweredOn: false, ethernetConnected: true,
+                                                 previousMissedChecks: required), .keepWatching)
+        XCTAssertEqual(WiFiSwitch.failoverAction(wifiPoweredOn: false, ethernetConnected: false,
+                                                 previousMissedChecks: 0), .keepWatching)
+        XCTAssertEqual(WiFiSwitch.failoverAction(wifiPoweredOn: false, ethernetConnected: false,
+                                                 previousMissedChecks: required - 1), .turnOnWiFi)
+    }
+
+    func testOnlyProfileSwitchesToggleWiFi() {
+        XCTAssertTrue(RestoreTrigger.manual.allowsWiFiSwitch)
+        XCTAssertTrue(RestoreTrigger.autoSwitch.allowsWiFiSwitch)
+        XCTAssertFalse(RestoreTrigger.timer.allowsWiFiSwitch)
+        XCTAssertFalse(RestoreTrigger.wake.allowsWiFiSwitch)
+        XCTAssertFalse(RestoreTrigger.login.allowsWiFiSwitch)
+    }
+
+    func testImportDropsInvalidWiFiSwitchFlag() {
+        let valid = Profiles.sanitizedImport(["settings": ["network_switch_wifi": true]], name: "A")
+        XCTAssertEqual((valid["settings"] as? [String: Any])?["network_switch_wifi"] as? Bool, true)
+        let invalid = Profiles.sanitizedImport(["settings": ["network_switch_wifi": "yes"]], name: "A")
+        XCTAssertNil((invalid["settings"] as? [String: Any])?["network_switch_wifi"])
+    }
+
     func testImportDropsInvalidNetworkMode() {
         let valid = Profiles.sanitizedImport(["settings": ["network_mode": "both", "wifi_ssid": "X"]], name: "A")
         XCTAssertEqual((valid["settings"] as? [String: Any])?["network_mode"] as? String, "both")

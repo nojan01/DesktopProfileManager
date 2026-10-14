@@ -59,6 +59,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var autoSwitchTimer: Timer?
     var lastAutoSwitch: String?
     var isAutoSwitchCheckRunning = false
+    // Überwacht das Kabel, solange die App das WLAN ausgeschaltet hat.
+    var wifiFailoverTimer: Timer?
+    var isWiFiFailoverCheckRunning = false
+    var wifiFailoverMissedChecks = 0
 
     // Wird beim App-Beenden gesetzt, damit das Schließen des Widget-Fensters
     // die gespeicherte Sichtbarkeit nicht zurücksetzt.
@@ -103,6 +107,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if config.get("auto_switch_enabled", false) {
             startAutoSwitch()
+        }
+        if config.get(Self.wifiOffByAppKey, false) {
+            startWiFiFailoverWatch()
         }
 
         // Nach dem Aufwachen aus dem Ruhezustand wiederherstellen
@@ -557,14 +564,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // angenommen wird. Einstellungen und Beenden bleiben bedienbar.
         buildMenu()
 
+        let switchWiFi = !iconsOnly && trigger.allowsWiFiSwitch
         restoreQueue.async { [weak self] in
             guard let self else { return }
+            // Vor der Wiederherstellung, damit Browser-Tabs bereits Netz haben.
+            let wifiOutcome = switchWiFi
+                ? WiFiSwitch.apply(settings: Profiles.load(name)?["settings"] as? [String: Any] ?? [:])
+                : .unchanged
             let r = Profiles.restore(name, includeWallpaper: incWallpaper, includeApps: incApps,
                                      hideOthers: hideOthers, quitOthers: quitOthers, launchDelay: delay,
                                      iconsOnly: iconsOnly,
                                      shouldCancel: { false })
             DispatchQueue.main.async {
                 self.restoreActivity.finish()
+                let wifiWarning = self.handleWiFiSwitch(wifiOutcome)
                 if let error = r.error {
                     self.buildMenu()
                     if notify { Notifier.show(L("Fehler", "Error"), error) }
@@ -577,6 +590,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 var msg = L("\(r.success) Icons wiederhergestellt", "\(r.success) icons restored")
                 if r.failed > 0 { msg += L(", \(r.failed) fehlgeschlagen", ", \(r.failed) failed") }
                 if let w = r.warning { msg += "\n⚠️ " + w }
+                if let w = wifiWarning { msg += "\n⚠️ " + w }
                 if notify { Notifier.show(L("Profil '\(name)'", "Profile '\(name)'"), msg) }
             }
         }
@@ -601,6 +615,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             options.emoji = saved["emoji"] as? String ?? ""
             options.wifiSSID = saved["wifi_ssid"] as? String ?? ""
             options.networkMode = NetworkMode.from(settings: saved)
+            options.switchWiFi = saved[WiFiSwitch.settingsKey] as? Bool ?? false
         }
         doSaveWithOptions(name, options: options, overwrite: true)
     }

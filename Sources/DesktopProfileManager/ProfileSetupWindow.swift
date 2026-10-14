@@ -11,6 +11,7 @@ final class ProfileSetupWindow: NSObject, NSWindowDelegate {
     private var emojiField: NSTextField!
     private var wifiCombo: NSComboBox!
     private var networkPopup: NSPopUpButton!
+    private var wifiSwitchBox: NSButton!
     /// Modi in der Reihenfolge der Einträge von `networkPopup`.
     private var networkModes: [NetworkMode] = []
     /// Aktuell verbundenes WLAN, sobald es im Hintergrund ermittelt wurde.
@@ -142,9 +143,22 @@ final class ProfileSetupWindow: NSObject, NSWindowDelegate {
         wifiCombo.stringValue = savedSSID
         if !savedSSID.isEmpty { wifiCombo.addItem(withObjectValue: savedSSID) }
         content.addSubview(wifiCombo)
-        updateWiFiComboState()
+        yCursor -= 30
+
+        wifiSwitchBox = NSButton(checkboxWithTitle: L("WLAN passend schalten (bei „Kabel“ aus, bei „WLAN“ ein)",
+                                                      "Switch Wi-Fi accordingly (off for “Cable”, on for “Wi-Fi”)"),
+                                 target: nil, action: nil)
+        wifiSwitchBox.frame = NSRect(x: padding, y: yCursor - 22, width: innerW, height: 22)
+        wifiSwitchBox.state = isEdit && savedSettings[WiFiSwitch.settingsKey] as? Bool == true ? .on : .off
+        wifiSwitchBox.toolTip = L(
+            "Das Kabel bleibt immer eingeschaltet. WLAN wird nur ausgeschaltet, wenn ein Kabel verbunden ist, und kommt automatisch zurück, sobald das Kabel getrennt wird. Ohne WLAN funktionieren AirDrop und Handoff nicht.",
+            "The cable always stays on. Wi-Fi is only turned off while a cable is connected and comes back automatically when the cable is disconnected. AirDrop and Handoff need Wi-Fi.")
+        // Ohne WLAN-Hardware gibt es nichts zu schalten.
+        wifiSwitchBox.isHidden = !WiFi.isAvailable
+        content.addSubview(wifiSwitchBox)
+        updateNetworkControls()
         loadWiFiNetworks(keeping: savedSSID)
-        yCursor -= 34
+        yCursor -= 30
 
         // Inhalts-Optionen
         label(isEdit ? L("Was soll wiederhergestellt werden?", "What should be restored?")
@@ -265,12 +279,13 @@ final class ProfileSetupWindow: NSObject, NSWindowDelegate {
         return networkModes.indices.contains(index) ? networkModes[index] : .none
     }
 
-    private func updateWiFiComboState() {
+    private func updateNetworkControls() {
         wifiCombo.isEnabled = selectedNetworkMode.usesWiFi
+        wifiSwitchBox.isEnabled = selectedNetworkMode.canSwitchWiFi
     }
 
     @objc func onNetworkModeChanged() {
-        updateWiFiComboState()
+        updateNetworkControls()
         guard selectedNetworkMode.usesWiFi else { return }
         // Ohne Freigabe der Ortungsdienste meldet macOS das verbundene WLAN nicht.
         WiFi.requestPermissionIfNeeded()
@@ -362,6 +377,7 @@ final class ProfileSetupWindow: NSObject, NSWindowDelegate {
         options.networkMode = selectedNetworkMode
         options.wifiSSID = options.networkMode.usesWiFi
             ? wifiCombo.stringValue.trimmingCharacters(in: .whitespaces) : ""
+        options.switchWiFi = !wifiSwitchBox.isHidden && wifiSwitchBox.state == .on
         options.includedApps = appCheckboxes.filter { $0.button.state == .on }.map { $0.name }
 
         window?.close()

@@ -10,6 +10,9 @@ enum RestoreTrigger {
     var allowsAppLaunch: Bool { self == .manual || self == .login }
     var allowsQuitOthers: Bool { self == .manual }
     var allowsHideOthers: Bool { self == .manual || self == .autoSwitch }
+    /// Nur echte Profilwechsel schalten das WLAN; Wiederherstellungen nach
+    /// Login, Aufwachen oder Intervall überschreiben keine manuelle Wahl.
+    var allowsWiFiSwitch: Bool { self == .manual || self == .autoSwitch }
 }
 
 /// Profil-Verwaltung – speichert/lädt JSON-Dateien im Format der Python-App,
@@ -173,6 +176,9 @@ enum Profiles {
             if let mode = settings["network_mode"], (mode as? String).flatMap(NetworkMode.init(rawValue:)) == nil {
                 settings.removeValue(forKey: "network_mode")
             }
+            if let flag = settings[WiFiSwitch.settingsKey], !(flag is Bool) {
+                settings.removeValue(forKey: WiFiSwitch.settingsKey)
+            }
             result["settings"] = settings
         } else {
             result.removeValue(forKey: "settings")
@@ -200,6 +206,7 @@ enum Profiles {
         var emoji = ""
         var wifiSSID = ""
         var networkMode: NetworkMode = .none
+        var switchWiFi = false
     }
 
     private static func settingsObject(_ options: SaveOptions, includedApps: Any) -> [String: Any] {
@@ -220,6 +227,7 @@ enum Profiles {
             // ein Kabel-Profil nicht als WLAN-Profil deuten.
             "wifi_ssid": options.networkMode.usesWiFi ? options.wifiSSID : "",
             "network_mode": options.networkMode.rawValue,
+            WiFiSwitch.settingsKey: options.switchWiFi && options.networkMode.canSwitchWiFi,
         ]
     }
 
