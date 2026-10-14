@@ -1,7 +1,7 @@
 import AppKit
 import ApplicationServices
 
-/// Globale Kurzbefehle (⌘⌃1–9) und automatisches Umschalten nach Zeit/WLAN.
+/// Globale Kurzbefehle (⌘⌃1–9) und automatisches Umschalten nach Zeit/Netzwerk.
 extension AppDelegate {
 
     // MARK: - Hotkey-Helfer
@@ -47,7 +47,7 @@ extension AppDelegate {
             if idx < profiles.count {
                 let name = profiles[idx].name
                 DispatchQueue.main.async {
-                    self.doRestore(name, markActive: true)
+                    self.doRestore(name, trigger: .manual, markActive: true)
                 }
             }
         }
@@ -115,6 +115,7 @@ extension AppDelegate {
         autoSwitchTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             self?.autoSwitchTick()
         }
+        WiFi.requestPermissionIfNeeded()
         autoSwitchTick()
     }
 
@@ -123,64 +124,187 @@ extension AppDelegate {
         autoSwitchTimer = nil
     }
 
-    /// Prüft, ob die aktuelle Uhrzeit im Bereich 'HH:MM-HH:MM' liegt.
-    private func timeInRange(_ value: String) -> Bool {
+    /// Prüft, ob `nowMinutes` (Minuten seit Mitternacht) im Bereich
+    /// 'HH:MM-HH:MM' liegt. Bereiche über Mitternacht sind erlaubt.
+    static func timeInRange(_ value: String, nowMinutes: Int) -> Bool {
         let parts = value.split(separator: "-")
         guard parts.count == 2 else { return false }
         func minutes(_ s: Substring) -> Int? {
             let hm = s.trimmingCharacters(in: .whitespaces).split(separator: ":")
-            guard hm.count == 2, let h = Int(hm[0]), let m = Int(hm[1]) else { return nil }
+            guard hm.count == 2, let h = Int(hm[0]), let m = Int(hm[1]),
+                  (0...23).contains(h), (0...59).contains(m) else { return nil }
             return h * 60 + m
         }
         guard let start = minutes(parts[0]), let end = minutes(parts[1]) else { return false }
-        let now = Calendar.current.dateComponents([.hour, .minute], from: Date())
-        let cur = (now.hour ?? 0) * 60 + (now.minute ?? 0)
-        if start <= end { return start <= cur && cur < end }
-        return cur >= start || cur < end // über Mitternacht
+        if start <= end { return start <= nowMinutes && nowMinutes < end }
+        return nowMinutes >= start || nowMinutes < end
+    }
+
+    static func timeRuleTarget(_ rules: [[String: Any]], nowMinutes: Int) -> String? {
+        for rule in rules where (rule["type"] as? String) == "time" {
+            if let profile = rule["profile"] as? String,
+               timeInRange(rule["value"] as? String ?? "", nowMinutes: nowMinutes) {
+                return profile
+            }
+        }
+        return nil
+    }
+
+    /// Ermittelt das Profil zur aktuellen Netzwerkverbindung. Ist ein Kabel
+    /// verbunden, gewinnt eine Kabel-Zuordnung (erst „Kabel“, dann „Beides“)
+    /// vor dem WLAN – auch wenn das WLAN gleichzeitig verbunden ist. Danach
+    /// folgen WLAN-Zuordnungen („WLAN“, dann „Beides“) und ältere WLAN-Regeln.
+    static func networkTarget(ssid: String?, ethernetConnected: Bool,
+                              profiles: [NetworkAssignment], rules: [[String: Any]]) -> String? {
+        if ethernetConnected {
+            if let match = profiles.first(where: { $0.mode == .ethernet }) { return match.name }
+            if let match = profiles.first(where: { $0.mode == .both }) { return match.name }
+        }
+        guard let ssid, !ssid.isEmpty else { return nil }
+        if let match = profiles.first(where: { $0.mode == .wifi && $0.ssid == ssid }) { return match.name }
+        if let match = profiles.first(where: { $0.mode == .both && $0.ssid == ssid }) { return match.name }
+        for rule in rules where (rule["type"] as? String) == "wifi" {
+            if let profile = rule["profile"] as? String, ssid == rule["value"] as? String {
+                return profile
+            }
+        }
+        return nil
     }
 
     private func autoSwitchTick() {
+        guard !isAutoSwitchCheckRunning else { return }
         let rules = config.get("auto_switch_rules", [[String: Any]]())
-        let profiles = Profiles.list()
-        let wifiMap = profiles.filter { !$0.wifiSSID.isEmpty }.map { (name: $0.name, ssid: $0.wifiSSID) }
-        if rules.isEmpty && wifiMap.isEmpty { return }
+        let networkProfiles = Profiles.list().filter { $0.networkMode != .none }
+            .map { NetworkAssignment(name: $0.name, mode: $0.networkMode, ssid: $0.wifiSSID) }
+        let hasWiFiRules = rules.contains { ($0["type"] as? String) == "wifi" }
+        let needsWiFi = hasWiFiRules || networkProfiles.contains { $0.mode.usesWiFi }
+        let needsEthernet = networkProfiles.contains { $0.mode.usesEthernet }
+        let needsNetwork = needsWiFi || needsEthernet
+        if rules.isEmpty && !needsNetwork { return }
 
-        var ssid: String?
-        var target: String?
-
-        // 1. Zeitregeln (Vorrang)
-        for rule in rules where (rule["type"] as? String) == "time" {
-            if let profile = rule["profile"] as? String,
-               timeInRange(rule["value"] as? String ?? "") {
-                target = profile
-                break
+        let now = Calendar.current.dateComponents([.hour, .minute], from: Date())
+        let nowMinutes = (now.hour ?? 0) * 60 + (now.minute ?? 0)
+        // Zeitregeln haben Vorrang.
+        if let target = Self.timeRuleTarget(rules, nowMinutes: nowMinutes) {
+            applyAutoSwitch(target)
+            return
+        }
+        guard needsNetwork else {
+            applyAutoSwitch(nil)
+            return
+        }
+        // Die Netzwerkabfrage startet ggf. Hilfsprozesse und darf das Menü nicht blockieren.
+        isAutoSwitchCheckRunning = true
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let ssid = needsWiFi ? WiFi.currentSSID() : nil
+            let wired = needsEthernet && Ethernet.isConnected()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isAutoSwitchCheckRunning = false
+                guard self.config.get("auto_switch_enabled", false) else { return }
+                self.applyAutoSwitch(Self.networkTarget(ssid: ssid, ethernetConnected: wired,
+                                                        profiles: networkProfiles, rules: rules))
             }
         }
+    }
 
-        // 2. WLAN-Zuordnung der Profile
-        if target == nil, !wifiMap.isEmpty {
-            ssid = WiFi.currentSSID() ?? ""
-            if let ssid = ssid, !ssid.isEmpty {
-                target = wifiMap.first { $0.ssid == ssid }?.name
-            }
+    // MARK: - WLAN passend schalten
+
+    static let wifiOffByAppKey = "wifi_off_by_app"
+
+    /// Übernimmt das Ergebnis der WLAN-Schaltung eines Profils und liefert ggf.
+    /// einen Hinweis für die Mitteilung.
+    func handleWiFiSwitch(_ outcome: WiFiSwitch.Outcome) -> String? {
+        switch outcome {
+        case .unchanged:
+            return nil
+        case .wifiOn:
+            setWiFiOffByApp(false)
+            return nil
+        case .wifiOff:
+            setWiFiOffByApp(true)
+            return nil
+        case .keptNoCable:
+            setWiFiOffByApp(false)
+            return L("Kein Netzwerkkabel verbunden – WLAN bleibt eingeschaltet.",
+                     "No network cable connected – Wi-Fi stays on.")
+        case .failed:
+            return L("WLAN konnte nicht umgeschaltet werden.", "Wi-Fi could not be switched.")
         }
+    }
 
-        // 3. Ältere WLAN-Regeln (Abwärtskompatibilität)
-        if target == nil {
-            for rule in rules where (rule["type"] as? String) == "wifi" {
-                guard let profile = rule["profile"] as? String else { continue }
-                if ssid == nil { ssid = WiFi.currentSSID() ?? "" }
-                if let ssid = ssid, !ssid.isEmpty, ssid == rule["value"] as? String {
-                    target = profile
-                    break
+    private func setWiFiOffByApp(_ value: Bool) {
+        if config.get(Self.wifiOffByAppKey, false) != value {
+            config.set(Self.wifiOffByAppKey, value)
+            config.save()
+        }
+        if value { startWiFiFailoverWatch() } else { stopWiFiFailoverWatch() }
+    }
+
+    /// Solange die App das WLAN ausgeschaltet hat, wird das Kabel überwacht.
+    /// Bleibt es mehrere Prüfungen lang getrennt, schaltet die App das WLAN
+    /// wieder ein (kurze Aussetzer, z. B. nach dem Aufwachen, zählen nicht).
+    func startWiFiFailoverWatch() {
+        guard wifiFailoverTimer == nil else { return }
+        wifiFailoverMissedChecks = 0
+        wifiFailoverTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+            self?.wifiFailoverTick()
+        }
+        wifiFailoverTick()
+    }
+
+    func stopWiFiFailoverWatch() {
+        wifiFailoverTimer?.invalidate()
+        wifiFailoverTimer = nil
+    }
+
+    private func wifiFailoverTick() {
+        guard !isWiFiFailoverCheckRunning else { return }
+        isWiFiFailoverCheckRunning = true
+        let missed = wifiFailoverMissedChecks
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let wired = Ethernet.isConnected()
+            let action = WiFiSwitch.failoverAction(wifiPoweredOn: WiFi.isPoweredOn, ethernetConnected: wired,
+                                                   previousMissedChecks: missed)
+            let restored = action == .turnOnWiFi && WiFi.setPower(true)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isWiFiFailoverCheckRunning = false
+                self.wifiFailoverMissedChecks = wired ? 0 : missed + 1
+                switch action {
+                case .keepWatching:
+                    return
+                case .stopWatching:
+                    self.setWiFiOffByApp(false)
+                case .turnOnWiFi:
+                    // Fehlgeschlagen: beim nächsten Durchlauf erneut versuchen.
+                    guard restored else { return }
+                    self.setWiFiOffByApp(false)
+                    Notifier.show(L("WLAN wieder eingeschaltet", "Wi-Fi turned back on"),
+                                  L("Das Netzwerkkabel wurde getrennt.", "The network cable was disconnected."))
+                    // Nach der WLAN-Anmeldung passendes Profil wählen.
+                    if self.config.get("auto_switch_enabled", false) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
+                            self?.autoSwitchTick()
+                        }
+                    }
                 }
             }
         }
+    }
 
-        if let target = target, target != lastAutoSwitch,
-           let path = Profiles.profilePath(target), FileManager.default.fileExists(atPath: path.path) {
+    /// Ohne passende Regel wird der Merker zurückgesetzt, damit ein späteres
+    /// erneutes Eintreten (z. B. Rückkehr ins Heim-WLAN) wieder umschaltet.
+    private func applyAutoSwitch(_ target: String?) {
+        guard let target, Profiles.exists(target) else {
+            lastAutoSwitch = nil
+            return
+        }
+        guard target != lastAutoSwitch else { return }
+        // Nur merken, wenn die Wiederherstellung tatsächlich angenommen wurde;
+        // sonst wird es beim nächsten Durchlauf erneut versucht.
+        if doRestore(target, trigger: .autoSwitch, markActive: true) {
             lastAutoSwitch = target
-            doRestore(target, includeApps: false, markActive: true)
         }
     }
 
@@ -192,8 +316,8 @@ extension AppDelegate {
             lastAutoSwitch = nil
             startAutoSwitch()
             Notifier.show(L("Auto-Umschalten aktiviert", "Auto switch enabled"),
-                          L("Profile werden je nach Zeit/WLAN automatisch gewechselt.",
-                            "Profiles are switched automatically based on time/Wi-Fi."))
+                          L("Profile werden je nach Zeit/Netzwerk automatisch gewechselt.",
+                            "Profiles are switched automatically based on time/network."))
         } else {
             stopAutoSwitch()
             Notifier.show(L("Auto-Umschalten deaktiviert", "Auto switch disabled"), "")

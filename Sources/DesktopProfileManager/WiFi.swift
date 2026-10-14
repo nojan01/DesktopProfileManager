@@ -1,40 +1,142 @@
+import CoreLocation
+import CoreWLAN
 import Foundation
 
-/// Liest die aktuell verbundene WLAN-SSID – kompatibel zur Python-Variante
-/// (zuerst `networksetup`, dann `ipconfig getsummary` als Fallback).
+/// Liest die aktuell verbundene WLAN-SSID. Seit macOS 14 liefert das System die
+/// SSID nur Apps mit Ortungsdienst-Berechtigung; ohne sie geben auch
+/// `networksetup`/`ipconfig` nur „<redacted>“ zurück.
 enum WiFi {
+    private static let permission = LocationPermission()
+
+    /// Fragt die Ortungsdienst-Berechtigung einmalig an (nur im App-Bundle mit
+    /// `NSLocationUsageDescription` möglich). Muss auf dem Main Thread laufen.
+    static func requestPermissionIfNeeded() {
+        permission.requestIfNeeded()
+    }
+
+    /// `nil`, wenn keine (lesbare) WLAN-Verbindung besteht.
     static func currentSSID() -> String? {
-        var ports: [String] = []
-        let (portsOut, _) = Shell.run("/usr/sbin/networksetup", ["-listallhardwareports"], timeout: 5)
-        for block in portsOut.components(separatedBy: "Hardware Port:") {
-            if block.contains("Wi-Fi") || block.contains("AirPort") {
-                for line in block.split(separator: "\n") {
-                    let trimmed = line.trimmingCharacters(in: .whitespaces)
-                    if trimmed.hasPrefix("Device:") {
-                        ports.append(String(trimmed.dropFirst("Device:".count)).trimmingCharacters(in: .whitespaces))
-                    }
-                }
-            }
+        if let ssid = CWWiFiClient.shared().interface()?.ssid(), let valid = validSSID(ssid) {
+            return valid
+        }
+
+        var ports = interfaceNames()
+        if ports.isEmpty {
+            let (portsOut, _) = Shell.run("/usr/sbin/networksetup", ["-listallhardwareports"], timeout: 5)
+            ports = parseWiFiDevices(portsOut)
         }
         if ports.isEmpty { ports = ["en0", "en1"] }
 
         for dev in ports {
             let (out, _) = Shell.run("/usr/sbin/networksetup", ["-getairportnetwork", dev], timeout: 5)
-            if out.contains(":"), !out.lowercased().contains("not associated") {
-                let ssid = out.components(separatedBy: ":").dropFirst().joined(separator: ":")
-                    .trimmingCharacters(in: .whitespaces)
-                if !ssid.isEmpty { return ssid }
-            }
+            if let ssid = parseAirportNetwork(out) { return ssid }
             let (summary, _) = Shell.run("/usr/sbin/ipconfig", ["getsummary", dev], timeout: 5)
-            for line in summary.split(separator: "\n") {
+            if let ssid = parseIpconfigSummary(summary) { return ssid }
+        }
+        return nil
+    }
+
+    /// Hat der Mac eine WLAN-Schnittstelle?
+    static var isAvailable: Bool { !interfaceNames().isEmpty }
+
+    static var isPoweredOn: Bool { CWWiFiClient.shared().interface()?.powerOn() ?? false }
+
+    /// Schaltet das WLAN ein oder aus; dafür sind keine Administratorrechte nötig.
+    @discardableResult
+    static func setPower(_ on: Bool) -> Bool {
+        guard let iface = CWWiFiClient.shared().interface() else { return false }
+        do {
+            try iface.setPower(on)
+        } catch {
+            guard let dev = iface.interfaceName else { return false }
+            Shell.run("/usr/sbin/networksetup", ["-setairportpower", dev, on ? "on" : "off"], timeout: 10)
+        }
+        return iface.powerOn() == on
+    }
+
+    private static func interfaceNames() -> [String] {
+        CWWiFiClient.shared().interfaces()?.compactMap { $0.interfaceName } ?? []
+    }
+
+    /// Bekannte WLANs in der Reihenfolge der macOS-Systemeinstellungen.
+    /// Kann Hilfsprozesse starten – nicht auf dem Main Thread aufrufen.
+    static func knownNetworks() -> [String] {
+        var names: [String] = []
+        if let profiles = CWWiFiClient.shared().interface()?.configuration()?.networkProfiles.array
+            as? [CWNetworkProfile] {
+            names = profiles.compactMap { $0.ssid.flatMap(validSSID) }
+        }
+        if names.isEmpty {
+            for dev in interfaceNames() {
+                let (out, _) = Shell.run("/usr/sbin/networksetup", ["-listpreferredwirelessnetworks", dev], timeout: 5)
+                names += parsePreferredNetworks(out)
+            }
+        }
+        var seen = Set<String>()
+        return names.filter { seen.insert($0).inserted }
+    }
+
+    /// Erwartet „Preferred networks on en1:“ gefolgt von eingerückten Namen.
+    static func parsePreferredNetworks(_ output: String) -> [String] {
+        output.split(separator: "\n")
+            .filter { $0.hasPrefix("\t") }
+            .compactMap { validSSID(String($0)) }
+    }
+
+    /// Verwirft leere und vom System geschwärzte Werte.
+    static func validSSID(_ raw: String) -> String? {
+        let ssid = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !ssid.isEmpty, ssid.lowercased() != "<redacted>" else { return nil }
+        return ssid
+    }
+
+    static func parseWiFiDevices(_ output: String) -> [String] {
+        var ports: [String] = []
+        for block in output.components(separatedBy: "Hardware Port:")
+        where block.contains("Wi-Fi") || block.contains("AirPort") {
+            for line in block.split(separator: "\n") {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.hasPrefix("SSID :") || trimmed.hasPrefix("SSID:") {
-                    let ssid = trimmed.components(separatedBy: ":").dropFirst().joined(separator: ":")
-                        .trimmingCharacters(in: .whitespaces)
-                    if !ssid.isEmpty { return ssid }
+                if trimmed.hasPrefix("Device:") {
+                    ports.append(String(trimmed.dropFirst("Device:".count)).trimmingCharacters(in: .whitespaces))
                 }
             }
         }
+        return ports
+    }
+
+    /// Erwartet „Current Wi-Fi Network: Name“.
+    static func parseAirportNetwork(_ output: String) -> String? {
+        let lower = output.lowercased()
+        guard output.contains(":"), !lower.contains("not associated"),
+              !lower.contains("not a wi-fi interface"), !lower.contains("error") else { return nil }
+        return validSSID(output.components(separatedBy: ":").dropFirst().joined(separator: ":"))
+    }
+
+    static func parseIpconfigSummary(_ output: String) -> String? {
+        for line in output.split(separator: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("SSID :") || trimmed.hasPrefix("SSID:") else { continue }
+            if let ssid = validSSID(trimmed.components(separatedBy: ":").dropFirst().joined(separator: ":")) {
+                return ssid
+            }
+        }
         return nil
+    }
+}
+
+private final class LocationPermission: NSObject, CLLocationManagerDelegate {
+    private var manager: CLLocationManager?
+
+    func requestIfNeeded() {
+        // Ohne Bundle-ID bzw. Usage-Beschreibung (z. B. `swift run`) würde die
+        // Anfrage still verworfen.
+        guard Bundle.main.bundleIdentifier != nil,
+              Bundle.main.object(forInfoDictionaryKey: "NSLocationUsageDescription") != nil else { return }
+        let manager = self.manager ?? CLLocationManager()
+        self.manager = manager
+        manager.delegate = self
+        if manager.authorizationStatus == .notDetermined {
+            manager.requestWhenInUseAuthorization()
+        }
     }
 }

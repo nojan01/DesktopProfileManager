@@ -7,7 +7,12 @@ cd "$SCRIPT_DIR"
 
 APP_NAME="Desktop Profile Manager"
 DMG_NAME="DesktopProfileManager-Swift"
-VERSION="${VERSION:-1.5.8}"
+# Ohne explizite Angabe gilt die Version aus Config.swift als einzige Quelle.
+VERSION="${VERSION:-$(sed -n 's/.*static let appVersion = "\([^"]*\)".*/\1/p' "$SCRIPT_DIR/Sources/DesktopProfileManager/Config.swift")}"
+if [ -z "$VERSION" ]; then
+    echo "❌ Version konnte nicht aus Config.swift gelesen werden."
+    exit 1
+fi
 NOTARIZE="${NOTARIZE:-1}"
 
 if [ -z "${SIGNING_IDENTITY:-}" ]; then

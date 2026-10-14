@@ -3,7 +3,7 @@ import Foundation
 /// Globale Konstanten – kompatibel zur Python-App (gleicher ~/.iconguard-Ordner).
 enum Paths {
     static let appName = "Desktop Profile Manager"
-    static let appVersion = "1.5.8"
+    static let appVersion = "1.6.0"
 
     static let profilesDir: URL = FileManager.default
         .homeDirectoryForCurrentUser.appendingPathComponent(".iconguard", isDirectory: true)
@@ -62,10 +62,17 @@ final class Config {
         values[key] = value
     }
 
-    func save() {
-        try? FileManager.default.createDirectory(at: Paths.profilesDir, withIntermediateDirectories: true)
-        if let data = try? JSONSerialization.data(withJSONObject: values, options: [.prettyPrinted, .sortedKeys]) {
-            try? data.write(to: Paths.configPath, options: .atomic)
+    @discardableResult
+    func save() -> Bool {
+        do {
+            try FileManager.default.createDirectory(at: Paths.profilesDir, withIntermediateDirectories: true)
+            let data = try JSONSerialization.data(withJSONObject: values, options: [.prettyPrinted, .sortedKeys])
+            try data.write(to: Paths.configPath, options: .atomic)
+            return true
+        } catch {
+            NSLog("DesktopProfileManager: Konfiguration konnte nicht gespeichert werden: %@",
+                  error.localizedDescription)
+            return false
         }
     }
 }

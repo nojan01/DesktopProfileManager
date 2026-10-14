@@ -16,10 +16,10 @@ Dieses Projekt steht unter der [MIT-Lizenz](LICENSE). Copyright © 2026 Norbert 
 - **Desktop-Hintergrund** – Hintergrundbild pro Profil speichern & wiederherstellen
 - **Apps & Fenster** – Laufende Apps inkl. Fensterposition/-größe sichern und beim Wiederherstellen starten (optional andere Apps ausblenden/beenden)
 - **Browser-Tabs** – Web- und lokale Datei-Tabs (`http(s)://`, `file://`) sowie Browser-Fensterpositionen aus Safari, Google Chrome und Microsoft Edge pro Profil sichern. Beim Wiederherstellen wird der Browser regulär beendet und einmal mit dem gespeicherten Tab-Satz neu gestartet. Firefox wird nicht unterstützt.
-- **Systemzustand** – Dark Mode, Lautstärke, Helligkeit, Nicht stören, Dock und Desktop-Ansicht pro Profil sichern
+- **Systemzustand** – Dark Mode, Lautstärke, Helligkeit, Dock und Desktop-Ansicht pro Profil sichern
 - **Icons verstecken** – Einzelne Desktop-Dateien ein-/ausblenden
 - **Tastenkombinationen** – Die ersten 9 Profile per Hotkey laden (Modifier wählbar: ⌘⌃, ⌃, ⌥⌘, ⌃⇧)
-- **Auto-Umschalten** – Profile automatisch nach Uhrzeit (Zeitregeln) oder nach verbundenem WLAN laden
+- **Auto-Umschalten** – Profile automatisch nach Uhrzeit (Zeitregeln) oder Netzwerk laden: WLAN (Auswahl aus den bekannten WLANs), Kabel oder beides; Kabel hat Vorrang (WLAN-Erkennung benötigt die Ortungsdienste-Freigabe). Optional schaltet ein Profil das WLAN passend aus (Kabel) bzw. ein (WLAN/Beides); wird das Kabel getrennt oder ein anderes Profil geladen, kommt das WLAN automatisch zurück
 - **Auto-Restore** – Automatische Wiederherstellung in konfigurierbaren Intervallen (5–240 Min)
 - **Autostart** – Optionaler Start beim Login via macOS LaunchAgent
 - **Menüleisten-App** – Läuft unauffällig in der Menüleiste (kein Dock-Icon)
@@ -31,13 +31,14 @@ Dieses Projekt steht unter der [MIT-Lizenz](LICENSE). Copyright © 2026 Norbert 
 > *Datenschutz & Sicherheit › Bedienungshilfen* freigegeben sein.
 > Unterstützt werden Safari, Google Chrome und Microsoft Edge. Browser-Tabs benötigen zusätzlich die von
 > macOS abgefragte Automatisierungsfreigabe. Firefox wird ohne Browser-Erweiterung nicht unterstützt.
-> Apps werden nur bei manuellem Restore und beim Login gestartet – nicht bei jedem Auto-Restore.
+> Apps werden nur bei manuellem Restore und beim Login gestartet – nicht beim Intervall-Restore, nach dem
+> Ruhemodus oder beim Auto-Umschalten. Andere Apps werden nur bei einem manuellen Wechsel beendet.
 
 ## Installation
 
 ### DMG (empfohlen)
 1. Das aktuelle DMG unter [GitHub Releases](https://github.com/nojan01/DesktopProfileManager/releases/latest) herunterladen oder `build_dmg.sh` ausführen
-2. `DesktopProfileManager-Swift-1.5.8.dmg` öffnen
+2. `DesktopProfileManager-Swift-<Version>.dmg` öffnen
 3. App nach `/Programme` ziehen
 4. Aus Launchpad starten
 
@@ -83,6 +84,7 @@ Profile und Einstellungen liegen unter:
 - AppleScript für Finder-Integration (Desktop-Icon-Positionen), Hintergrund und Fenster
 - macOS LaunchAgent für Autostart
 - Ziel-OS: macOS 12+
+- Die Versionsnummer steht nur in `Sources/DesktopProfileManager/Config.swift` (`appVersion`); die Build-Skripte lesen sie dort aus
 
 ## Lizenz / License
 

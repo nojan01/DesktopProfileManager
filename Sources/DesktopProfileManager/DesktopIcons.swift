@@ -3,6 +3,11 @@ import AppKit
 
 /// Desktop-Icon-Positionen und Sichtbarkeit von Desktop-Dateien.
 enum DesktopIcons {
+    /// Finder registriert Laufwerksicons nach einem Profilwechsel gelegentlich
+    /// erst verzögert. Zwei kurze Nachprüfungen ersetzen die bisher nötigen
+    /// manuellen Wiederholungen des Profilwechsels.
+    static let positionRestoreRetryCount = 2
+    static let positionRestoreRetryDelay: TimeInterval = 0.6
 
     /// Liest alle Desktop-Icon-Positionen als [name: (x, y)].
     static func getPositions() -> [String: (x: Int, y: Int)] {
@@ -37,6 +42,35 @@ enum DesktopIcons {
     static func setPositions(_ positions: [String: (x: Int, y: Int)],
                              shouldCancel: () -> Bool = { false }) -> (success: Int, failed: Int) {
         if positions.isEmpty { return (0, 0) }
+        let firstResult = applyPositionsOnce(positions, shouldCancel: shouldCancel)
+        guard firstResult.success > 0, !shouldCancel() else { return firstResult }
+
+        refreshFinderDesktop()
+        guard var pending = mismatchedPositions(positions), !pending.isEmpty else {
+            return firstResult
+        }
+
+        for _ in 0..<positionRestoreRetryCount {
+            Thread.sleep(forTimeInterval: positionRestoreRetryDelay)
+            guard !shouldCancel() else { break }
+            _ = applyPositionsOnce(pending, shouldCancel: shouldCancel)
+            refreshFinderDesktop()
+            guard let remaining = mismatchedPositions(positions) else { break }
+            pending = remaining
+            if pending.isEmpty { break }
+        }
+
+        // Der abschließende Abgleich zählt nur tatsächlich an der Zielposition
+        // befindliche Icons als Erfolg. Nicht mehr vorhandene Dateien bleiben
+        // korrekt als fehlgeschlagen sichtbar.
+        if let remaining = mismatchedPositions(positions) {
+            return (positions.count - remaining.count, remaining.count)
+        }
+        return firstResult
+    }
+
+    private static func applyPositionsOnce(_ positions: [String: (x: Int, y: Int)],
+                                           shouldCancel: () -> Bool) -> (success: Int, failed: Int) {
         var entries: [String] = []
         for (name, pos) in positions {
             entries.append("{\"\(Shell.esc(name))\", \(pos.x), \(pos.y)}")
@@ -79,6 +113,19 @@ enum DesktopIcons {
         return (0, positions.count)
     }
 
+    /// Gibt nur die Icons zurück, die Finder noch nicht an der gespeicherten
+    /// Position meldet. `nil` steht für einen nicht lesbaren Finder-Zustand;
+    /// dann bleibt das Ergebnis des ursprünglichen Setzens erhalten.
+    private static func mismatchedPositions(_ desired: [String: (x: Int, y: Int)])
+        -> [String: (x: Int, y: Int)]? {
+        let current = getPositions()
+        guard !current.isEmpty else { return nil }
+        return desired.filter { name, position in
+            guard let actual = current[name] else { return true }
+            return actual.x != position.x || actual.y != position.y
+        }
+    }
+
     static func positionRestoreTimeout(itemCount: Int) -> TimeInterval {
         min(30, max(10, 5 + (Double(itemCount) * 0.1)))
     }
@@ -106,27 +153,40 @@ enum DesktopIcons {
         return getAllItems().filter { $0.hidden }.map { $0.name }
     }
 
+    /// Liefert nur die Einträge, deren gewünschter Zustand vom aktuellen
+    /// abweicht. Nicht (mehr) vorhandene Dateien bleiben enthalten, damit sie
+    /// beim Anwenden als Fehler gezählt werden.
+    static func visibilityChanges(desired: [(name: String, hidden: Bool)],
+                                  current: [DesktopItem]) -> [(name: String, hidden: Bool)] {
+        let currentState = Dictionary(current.map { ($0.name, $0.hidden) },
+                                      uniquingKeysWith: { first, _ in first })
+        return desired.filter { currentState[$0.name] != $0.hidden }
+    }
+
     /// Wendet mehrere Sichtbarkeitsänderungen an und aktualisiert Finder danach
-    /// genau einmal.
+    /// höchstens einmal. Unveränderte Einträge lösen keinen Finder-Neustart aus.
     @discardableResult
-    static func applyVisibility(_ changes: [(name: String, hidden: Bool)])
+    static func applyVisibility(_ desired: [(name: String, hidden: Bool)])
         -> (success: Int, failed: Int) {
-        var success = 0
+        let changes = visibilityChanges(desired: desired, current: getAllItems())
+        var success = desired.count - changes.count
         var failed = 0
-        var hidItem = false
+        var changed = false
 
         for change in changes {
             if setHidden(change.name, change.hidden) {
                 success += 1
-                if change.hidden { hidItem = true }
+                changed = true
             } else {
                 failed += 1
             }
         }
 
-        if hidItem {
+        // Versteckte Icons erscheinen nur dann ausgegraut, wenn Finder versteckte
+        // Dateien anzeigt. Nur in diesem Fall ist ein Finder-Neustart nötig.
+        if desired.contains(where: { $0.hidden }) && finderShowsHiddenFiles() {
             enforceFinderHidesHiddenFiles()
-        } else if success > 0 {
+        } else if changed {
             refreshFinderDesktop()
         }
         return (success, failed)
@@ -154,6 +214,15 @@ enum DesktopIcons {
         } catch {
             return false
         }
+    }
+
+    private static func finderShowsHiddenFiles() -> Bool {
+        let result = Shell.run("/usr/bin/defaults", ["read", "com.apple.finder", "AppleShowAllFiles"])
+        return result.code == 0 && isTruthyDefaultsValue(result.output)
+    }
+
+    static func isTruthyDefaultsValue(_ value: String) -> Bool {
+        ["1", "true", "yes"].contains(value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
     }
 
     /// macOS zeigt unsichtbare Dateien ausgegraut an, wenn Finders globale

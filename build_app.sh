@@ -7,7 +7,12 @@ cd "$SCRIPT_DIR"
 
 APP_NAME="Desktop Profile Manager"
 BUNDLE_ID="com.desktopprofilemanager.swift"
-VERSION="${VERSION:-1.5.8}"
+# Ohne explizite Angabe gilt die Version aus Config.swift als einzige Quelle.
+VERSION="${VERSION:-$(sed -n 's/.*static let appVersion = "\([^"]*\)".*/\1/p' Sources/DesktopProfileManager/Config.swift)}"
+if [ -z "$VERSION" ]; then
+    echo "❌ Version konnte nicht aus Config.swift gelesen werden."
+    exit 1
+fi
 ENTITLEMENTS_PATH="$SCRIPT_DIR/Resources/DesktopProfileManager.entitlements"
 
 # Optional überschreibbar, z. B. für ein anderes Team oder CI. Ohne explizite
@@ -70,11 +75,35 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
     <string>12.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>de</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>de</string>
+        <string>en</string>
+    </array>
     <key>NSAppleEventsUsageDescription</key>
     <string>Wird zum Speichern/Wiederherstellen von Icon-Positionen, Fenstern und Hintergrund benötigt.</string>
+    <key>NSLocationUsageDescription</key>
+    <string>Wird nur benötigt, um den WLAN-Namen für das automatische Umschalten von Profilen zu lesen.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Wird nur benötigt, um den WLAN-Namen für das automatische Umschalten von Profilen zu lesen.</string>
 </dict>
 </plist>
 PLIST
+
+# Lokalisierte Berechtigungstexte
+mkdir -p "$APP_DIR/Contents/Resources/de.lproj" "$APP_DIR/Contents/Resources/en.lproj"
+cat > "$APP_DIR/Contents/Resources/de.lproj/InfoPlist.strings" <<'STRINGS'
+"NSAppleEventsUsageDescription" = "Wird zum Speichern/Wiederherstellen von Icon-Positionen, Fenstern und Hintergrund benötigt.";
+"NSLocationUsageDescription" = "Wird nur benötigt, um den WLAN-Namen für das automatische Umschalten von Profilen zu lesen.";
+"NSLocationWhenInUseUsageDescription" = "Wird nur benötigt, um den WLAN-Namen für das automatische Umschalten von Profilen zu lesen.";
+STRINGS
+cat > "$APP_DIR/Contents/Resources/en.lproj/InfoPlist.strings" <<'STRINGS'
+"NSAppleEventsUsageDescription" = "Required to save and restore icon positions, windows and wallpaper.";
+"NSLocationUsageDescription" = "Only used to read the Wi-Fi name for automatic profile switching.";
+"NSLocationWhenInUseUsageDescription" = "Only used to read the Wi-Fi name for automatic profile switching.";
+STRINGS
 
 echo "✍️  Signiere App mit: $SIGNING_IDENTITY"
 codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp \

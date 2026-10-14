@@ -40,7 +40,8 @@ final class VisibilityWindow: NSObject, NSWindowDelegate {
         let docHeight = max(contentHeight, windowHeight - 80)
         let docView = NSView(frame: NSRect(x: 0, y: 0, width: viewWidth - 20, height: docHeight))
         for (i, item) in items.enumerated() {
-            let y = contentHeight - CGFloat(i + 1) * rowHeight
+            // Von oben anordnen, auch wenn die Liste kürzer als das Fenster ist.
+            let y = docHeight - CGFloat(i + 1) * rowHeight
             let cb = NSButton(checkboxWithTitle: item.name, target: nil, action: nil)
             cb.frame = NSRect(x: padding, y: y, width: viewWidth - 2 * padding, height: rowHeight)
             cb.state = item.hidden ? .off : .on // angehakt = sichtbar
@@ -88,6 +89,10 @@ final class VisibilityWindow: NSObject, NSWindowDelegate {
                 Notifier.show(L("Sichtbarkeit geändert", "Visibility changed"), detail)
             }
         }
+    }
+
+    func close() {
+        window?.close()
     }
 
     func windowWillClose(_ notification: Notification) {

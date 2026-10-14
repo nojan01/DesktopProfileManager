@@ -14,6 +14,7 @@ enum Apps {
         var bundleID: String?
         var path: String
         var windows: [[String: Int]] = []
+        var pid: pid_t? = nil
     }
 
     /// Aktuell sichtbare (reguläre) Apps via NSWorkspace.
@@ -25,23 +26,26 @@ enum Apps {
             let bundleID = ra.bundleIdentifier
             if let bid = bundleID, appBlacklistBundles.contains(bid) { continue }
             if appBlacklistNames.contains(name) { continue }
-            apps.append(AppInfo(name: name, bundleID: bundleID, path: url.path))
+            apps.append(AppInfo(name: name, bundleID: bundleID, path: url.path,
+                                pid: ra.processIdentifier))
         }
         return apps
     }
 
-    /// Liefert pro Prozessname die Fenster-Geometrien (benötigt Bedienungshilfen).
-    static func getWindows() -> [String: [[String: Int]]] {
+    /// Liefert pro Prozess-ID die Fenster-Geometrien (benötigt Bedienungshilfen).
+    /// Prozessnamen aus System Events weichen teils vom lokalisierten App-Namen
+    /// ab; die Prozess-ID ist dagegen eindeutig.
+    static func getWindowsByPID() -> [pid_t: [[String: Int]]] {
         let script = """
         tell application "System Events"
             set output to ""
             repeat with proc in (every process whose background only is false)
-                set procName to name of proc
                 try
+                    set procID to unix id of proc
                     repeat with w in windows of proc
                         set p to position of w
                         set s to size of w
-                        set output to output & procName & "||" & (item 1 of p) & "||" & (item 2 of p) & "||" & (item 1 of s) & "||" & (item 2 of s) & linefeed
+                        set output to output & procID & "||" & (item 1 of p) & "||" & (item 2 of p) & "||" & (item 1 of s) & "||" & (item 2 of s) & linefeed
                     end repeat
                 end try
             end repeat
@@ -49,13 +53,18 @@ enum Apps {
         end tell
         """
         guard let raw = Shell.runAppleScript(script) else { return [:] }
-        var result: [String: [[String: Int]]] = [:]
+        return parseWindowLines(raw)
+    }
+
+    static func parseWindowLines(_ raw: String) -> [pid_t: [[String: Int]]] {
+        var result: [pid_t: [[String: Int]]] = [:]
         for line in raw.split(separator: "\n") {
-            let parts = line.components(separatedBy: "||")
+            let parts = line.components(separatedBy: "||").map { $0.trimmingCharacters(in: .whitespaces) }
             if parts.count != 5 { continue }
-            guard let x = Double(parts[1]), let y = Double(parts[2]),
+            guard let pid = pid_t(parts[0]),
+                  let x = Double(parts[1]), let y = Double(parts[2]),
                   let w = Double(parts[3]), let h = Double(parts[4]) else { continue }
-            result[parts[0], default: []].append(["x": Int(x), "y": Int(y), "w": Int(w), "h": Int(h)])
+            result[pid, default: []].append(["x": Int(x), "y": Int(y), "w": Int(w), "h": Int(h)])
         }
         return result
     }
@@ -63,29 +72,44 @@ enum Apps {
     /// Erfasst laufende Apps inkl. Fenster; ausgeschlossene Namen werden ausgelassen.
     static func capture(exclusions: Set<String>) -> [AppInfo] {
         var apps = getRunning().filter { !exclusions.contains($0.name) }
-        let windows = getWindows()
+        if apps.isEmpty { return apps }
+        let windows = getWindowsByPID()
         for i in apps.indices {
-            apps[i].windows = windows[apps[i].name] ?? []
+            apps[i].windows = apps[i].pid.flatMap { windows[$0] } ?? []
         }
         return apps
+    }
+
+    /// Adressiert den Prozess bevorzugt über die Bundle-ID; der Name dient nur
+    /// als Rückfall für ältere Profile ohne Bundle-ID.
+    static func windowRestoreScript(_ app: AppInfo) -> String? {
+        guard !app.windows.isEmpty else { return nil }
+        let target: String
+        if let bundleID = app.bundleID, !bundleID.isEmpty {
+            target = "first process whose bundle identifier is \"\(Shell.esc(bundleID))\""
+        } else if !app.name.isEmpty {
+            target = "process \"\(Shell.esc(app.name))\""
+        } else {
+            return nil
+        }
+        var lines = ["tell application \"System Events\"", "  tell \(target)"]
+        for (i, w) in app.windows.enumerated() {
+            lines.append("    try")
+            lines.append("      set position of window \(i + 1) to {\(w["x"] ?? 0), \(w["y"] ?? 0)}")
+            lines.append("      set size of window \(i + 1) to {\(w["w"] ?? 0), \(w["h"] ?? 0)}")
+            lines.append("    end try")
+        }
+        lines.append("  end tell")
+        lines.append("end tell")
+        return lines.joined(separator: "\n")
     }
 
     static func restoreWindows(_ apps: [AppInfo],
                                shouldCancel: @escaping () -> Bool = { false }) {
         for app in apps {
             if shouldCancel() { return }
-            if app.windows.isEmpty { continue }
-            let name = Shell.esc(app.name)
-            var lines = ["tell application \"System Events\"", "  tell process \"\(name)\""]
-            for (i, w) in app.windows.enumerated() {
-                lines.append("    try")
-                lines.append("      set position of window \(i + 1) to {\(w["x"] ?? 0), \(w["y"] ?? 0)}")
-                lines.append("      set size of window \(i + 1) to {\(w["w"] ?? 0), \(w["h"] ?? 0)}")
-                lines.append("    end try")
-            }
-            lines.append("  end tell")
-            lines.append("end tell")
-            _ = Shell.runAppleScript(lines.joined(separator: "\n"), timeout: 5)
+            guard let script = windowRestoreScript(app) else { continue }
+            _ = Shell.runAppleScript(script, timeout: 5)
         }
     }
 
@@ -167,7 +191,7 @@ enum Apps {
     @discardableResult
     static func hideOthers(keep: [AppInfo]) -> Int {
         let keepBundles = Set(keep.compactMap { $0.bundleID })
-        let keepNames = Set(keep.map { $0.name })
+        let keepNames = Set(keep.map { $0.name }.filter { !$0.isEmpty })
         let ownPID = ProcessInfo.processInfo.processIdentifier
         var toHide: [String] = []
         for ra in NSWorkspace.shared.runningApplications {
@@ -207,7 +231,7 @@ enum Apps {
     @discardableResult
     static func quitOthers(keep: [AppInfo]) -> Int {
         let keepBundles = Set(keep.compactMap { $0.bundleID })
-        let keepNames = Set(keep.map { $0.name })
+        let keepNames = Set(keep.map { $0.name }.filter { !$0.isEmpty })
         let ownPID = ProcessInfo.processInfo.processIdentifier
         var count = 0
         for ra in NSWorkspace.shared.runningApplications {
