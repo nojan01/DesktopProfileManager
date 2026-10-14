@@ -62,10 +62,17 @@ final class Config {
         values[key] = value
     }
 
-    func save() {
-        try? FileManager.default.createDirectory(at: Paths.profilesDir, withIntermediateDirectories: true)
-        if let data = try? JSONSerialization.data(withJSONObject: values, options: [.prettyPrinted, .sortedKeys]) {
-            try? data.write(to: Paths.configPath, options: .atomic)
+    @discardableResult
+    func save() -> Bool {
+        do {
+            try FileManager.default.createDirectory(at: Paths.profilesDir, withIntermediateDirectories: true)
+            let data = try JSONSerialization.data(withJSONObject: values, options: [.prettyPrinted, .sortedKeys])
+            try data.write(to: Paths.configPath, options: .atomic)
+            return true
+        } catch {
+            NSLog("DesktopProfileManager: Konfiguration konnte nicht gespeichert werden: %@",
+                  error.localizedDescription)
+            return false
         }
     }
 }

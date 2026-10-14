@@ -49,7 +49,8 @@ final class AppSelectionWindow: NSObject, NSWindowDelegate {
         let docHeight = max(contentHeight, windowHeight - 90)
         let docView = NSView(frame: NSRect(x: 0, y: 0, width: viewWidth - 20, height: docHeight))
         for (i, appInfo) in apps.enumerated() {
-            let y = contentHeight - CGFloat(i + 1) * rowHeight
+            // Von oben anordnen, auch wenn die Liste kürzer als das Fenster ist.
+            let y = docHeight - CGFloat(i + 1) * rowHeight
             let cb = NSButton(checkboxWithTitle: appInfo.name, target: nil, action: nil)
             cb.frame = NSRect(x: padding, y: y, width: viewWidth - 2 * padding, height: rowHeight)
             cb.state = exclusions.contains(appInfo.name) ? .off : .on
@@ -85,12 +86,29 @@ final class AppSelectionWindow: NSObject, NSWindowDelegate {
     }
 
     @objc func onApply() {
-        // Nicht angehakte Apps werden ausgeschlossen.
-        let exclusions = checkboxes.filter { $0.button.state == .off }.map { $0.name }
+        // Nicht angehakte Apps werden ausgeschlossen. Ausschlüsse für Apps, die
+        // gerade nicht laufen und daher nicht angezeigt wurden, bleiben erhalten.
+        let previous = app?.config.get("app_exclusions", [String]()) ?? []
+        let exclusions = Self.mergedExclusions(
+            previous: previous,
+            shown: checkboxes.map { $0.name },
+            unchecked: checkboxes.filter { $0.button.state == .off }.map { $0.name })
         app?.config.set("app_exclusions", exclusions)
         app?.config.save()
         window?.close()
         Notifier.show(L("App-Auswahl gespeichert", "App selection saved"), "")
+    }
+
+    static func mergedExclusions(previous: [String], shown: [String],
+                                 unchecked: [String]) -> [String] {
+        let shownSet = Set(shown)
+        var result = previous.filter { !shownSet.contains($0) }
+        for name in unchecked where !result.contains(name) { result.append(name) }
+        return result
+    }
+
+    func close() {
+        window?.close()
     }
 
     func windowWillClose(_ notification: Notification) {

@@ -26,40 +26,63 @@ enum BrowserTabs {
         Browser(name: "Microsoft Edge", bundleID: "com.microsoft.edgemac"),
     ]
 
+    static func runningBundleIDs() -> Set<String> {
+        Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+    }
+
+    static func browserName(for bundleID: String) -> String {
+        supportedBrowsers.first { $0.bundleID == bundleID }?.name ?? bundleID
+    }
+
     /// Liest Web- und lokale Datei-Tabs aktuell laufender unterstützter Browser aus.
     static func capture() -> [String: [String]] {
-        let runningBundleIDs = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+        let running = runningBundleIDs()
         var result: [String: [String]] = [:]
-        for browser in supportedBrowsers where runningBundleIDs.contains(browser.bundleID) {
-            let script = """
-            tell application "\(browser.name)"
-                set output to ""
-                repeat with w in windows
-                    repeat with t in tabs of w
-                        try
-                            set output to output & (URL of t) & linefeed
-                        end try
-                    end repeat
-                end repeat
-                return output
-            end tell
-            """
-            guard let output = Shell.runAppleScript(script) else { continue }
+        for browser in supportedBrowsers where running.contains(browser.bundleID) {
+            guard let output = Shell.runAppleScript(captureScript(browserName: browser.name)) else { continue }
             let urls = validURLs(output.split(separator: "\n").map(String.init))
             if !urls.isEmpty { result[browser.bundleID] = urls }
         }
         return result
     }
 
+    /// Inkognito-Fenster (Chrome/Edge) werden nicht gespeichert. Safari kennt die
+    /// Eigenschaft `mode` nicht; der Fehler wird abgefangen und das Fenster normal
+    /// erfasst.
+    static func captureScript(browserName: String) -> String {
+        """
+        tell application "\(Shell.esc(browserName))"
+            set output to ""
+            repeat with w in windows
+                set isPrivate to false
+                try
+                    if (mode of w as string) is "incognito" then set isPrivate to true
+                end try
+                if not isPrivate then
+                    repeat with t in tabs of w
+                        try
+                            set output to output & (URL of t) & linefeed
+                        end try
+                    end repeat
+                end if
+            end repeat
+            return output
+        end tell
+        """
+    }
+
     /// Erfasst Browser-Fenster unabhängig davon, ob der Browser in der allgemeinen
-    /// App-Auswahl des Profils enthalten ist.
+    /// App-Auswahl des Profils enthalten ist. Die Zuordnung erfolgt über die
+    /// Prozess-ID, weil Prozessnamen lokalisiert oder abweichend sein können.
     static func captureWindowPositions() -> [String: [[String: Int]]] {
-        let windowsByName = Apps.getWindows()
+        let windowsByPID = Apps.getWindowsByPID()
         var result: [String: [[String: Int]]] = [:]
-        for browser in supportedBrowsers {
-            if let windows = windowsByName[browser.name], !windows.isEmpty {
-                result[browser.bundleID] = windows
-            }
+        for application in NSWorkspace.shared.runningApplications {
+            guard let bundleID = application.bundleIdentifier,
+                  supportedBrowsers.contains(where: { $0.bundleID == bundleID }),
+                  let windows = windowsByPID[application.processIdentifier],
+                  !windows.isEmpty else { continue }
+            result[bundleID, default: []].append(contentsOf: windows)
         }
         return result
     }
@@ -195,36 +218,43 @@ enum BrowserTabs {
         for (bundleID, rawWindows) in dictionary {
             guard let windows = rawWindows as? [Any] else { continue }
             let validWindows = windows.compactMap { rawWindow -> [String: Int]? in
-                guard let window = rawWindow as? [String: Any],
-                      let x = window["x"] as? Int,
-                      let y = window["y"] as? Int,
-                      let width = window["w"] as? Int,
-                      let height = window["h"] as? Int,
-                      width > 0, height > 0 else { return nil }
-                return ["x": x, "y": y, "w": width, "h": height]
+                guard let window = JSONNumber.intDict(rawWindow, keys: JSONNumber.frameKeys),
+                      (window["w"] ?? 0) > 0, (window["h"] ?? 0) > 0 else { return nil }
+                return window
             }
             if !validWindows.isEmpty { result[bundleID] = validWindows }
         }
         return result
     }
 
-    /// Safari kann beim Speichern vorübergehend keine URLs liefern, etwa während
-    /// einer Sitzungswiederherstellung. In diesem Fall dürfen beim Überschreiben
-    /// eines Profils bereits gespeicherte Tabs nicht verloren gehen.
+    /// Ein laufender Browser kann beim Speichern vorübergehend keine URLs liefern,
+    /// etwa während einer Sitzungswiederherstellung. Beim Überschreiben bleiben
+    /// dann genau für diesen Browser die bisher gespeicherten Tabs erhalten.
+    /// `runningBundleIDs == nil` behandelt alle Browser als laufend.
     static func tabsForSave(captured: [String: [String]], existing: Any?,
-                            captureRequested: Bool) -> (tabs: [String: [String]], preserved: Bool) {
-        guard captureRequested, captured.isEmpty else {
-            return (captured, false)
+                            captureRequested: Bool, runningBundleIDs: Set<String>? = nil)
+        -> (tabs: [String: [String]], preserved: [String]) {
+        guard captureRequested else { return (captured, []) }
+        var tabs = captured
+        var preserved: [String] = []
+        for (bundleID, urls) in parse(existing).sorted(by: { $0.key < $1.key })
+        where captured[bundleID] == nil && (runningBundleIDs?.contains(bundleID) ?? true) {
+            tabs[bundleID] = urls
+            preserved.append(browserName(for: bundleID))
         }
-        let previous = parse(existing)
-        guard !previous.isEmpty else { return (captured, false) }
-        return (previous, true)
+        return (tabs, preserved)
     }
 
     static func windowPositionsForSave(captured: [String: [[String: Int]]],
-                                       existing: Any?, captureRequested: Bool) -> [String: [[String: Int]]] {
-        guard captureRequested, captured.isEmpty else { return captured }
-        return parseWindowPositions(existing)
+                                       existing: Any?, captureRequested: Bool,
+                                       runningBundleIDs: Set<String>? = nil) -> [String: [[String: Int]]] {
+        guard captureRequested else { return captured }
+        var result = captured
+        for (bundleID, windows) in parseWindowPositions(existing)
+        where captured[bundleID] == nil && (runningBundleIDs?.contains(bundleID) ?? true) {
+            result[bundleID] = windows
+        }
+        return result
     }
 
     static func validURLs(_ candidates: [String]) -> [String] {

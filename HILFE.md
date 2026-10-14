@@ -117,7 +117,9 @@ Untermenü **💾 Profil speichern …**:
 - **Neues Profil …** – Öffnet das Profil-Erstellungs-Fenster (siehe
   [unten](#das-profil-erstellungs-fenster-im-detail)). Hier legst du Name, Emoji,
   Inhalte, optional die WLAN-Zuordnung, Apps und Browser-Tabs fest. Profilnamen
-  dürfen Buchstaben, Zahlen, Leerzeichen, Bindestriche und Unterstriche enthalten.
+  dürfen Buchstaben, Zahlen, Leerzeichen, Bindestriche und Unterstriche enthalten,
+  aber nicht mit einem Unterstrich beginnen (reserviert für interne Dateien wie
+  `_config.json`).
 - **Überschreiben: \<Profil\>** – Speichert den **aktuellen** Desktop-Zustand in ein
   bereits vorhandenes Profil und übernimmt dabei dessen bisherige Einstellungen
   (welche Inhalte erfasst werden, Emoji, App-Auswahl usw.). Praktisch, um ein Profil
@@ -136,14 +138,17 @@ dem Schreibtisch aufgelistet sind. Pro Eintrag kannst du festlegen, ob das Icon
 sichtbar oder versteckt sein soll. So blendest du einzelne Symbole gezielt aus,
 ohne sie zu löschen. Der Zustand kann anschließend Teil eines Profils werden.
 Beim Ausblenden deaktiviert die App Finders systemweite Anzeige versteckter
-Dateien, damit die Icons nicht nur ausgegraut erscheinen.
+Dateien, damit die Icons nicht nur ausgegraut erscheinen. Der Finder wird dafür nur
+neu gestartet, wenn diese Anzeige tatsächlich eingeschaltet war; unveränderte Icons
+lösen keinen Neustart aus.
 
 ### Apps für Profile auswählen
 
 **🚀 Apps für Profile auswählen …** öffnet ein Fenster mit allen aktuell laufenden
 Apps. Hier definierst du eine globale **Ausschlussliste**: Abgehakte Apps werden
 beim Speichern neuer Profile **nicht** mit erfasst (z. B. Hintergrund-Tools oder die
-Entwicklungsumgebung). Diese Auswahl gilt als Vorgabe für neue Profile.
+Entwicklungsumgebung). Diese Auswahl gilt als Vorgabe für neue Profile. Ausschlüsse
+für Apps, die gerade nicht laufen, bleiben beim Übernehmen erhalten.
 
 ### Profil-Widget anzeigen
 
@@ -151,7 +156,9 @@ Entwicklungsumgebung). Diese Auswahl gilt als Vorgabe für neue Profile.
 dem Desktop ein. Es enthält pro Profil einen Knopf zum direkten Wiederherstellen.
 
 - Das Widget ist **randlos und transparent** – sichtbar sind nur die Knöpfe.
-- Du verschiebst es per **Ziehen mit der Maus**; die Position wird gespeichert.
+- Du verschiebst es per **Ziehen mit der Maus**; die Position wird gespeichert. Liegt
+  die gespeicherte Position nicht mehr auf einem Bildschirm (z. B. nach dem Abstecken
+  eines Monitors), erscheint das Widget wieder an der Standardposition.
 - Das aktive Profil ist im Widget farblich hervorgehoben.
 - Die Sichtbarkeit bleibt über App-Neustarts hinweg erhalten.
 
@@ -191,13 +198,19 @@ Kurz gesagt, die Einträge greifen so ineinander:
 **🧩 Auto-Restore nur Desktop-Symbole** (Schalter) legt fest, **was** die
 *automatische* Wiederherstellung (Intervall-Timer, Login und Ruhemodus) anwendet:
 
-- **Aus** (Standard): Es wird das komplette Profil angewandt – Icon-Positionen,
-  Hintergrund, Apps und Systemzustand.
+- **Aus** (Standard): Es wird das Profil angewandt – Icon-Positionen, versteckte
+  Icons, Hintergrund und Systemzustand. Apps (inkl. Browser-Neustart) startet davon
+  nur das Wiederherstellen **beim Login**.
 - **An**: Es werden **nur die Desktop-Symbol-Positionen** wiederhergestellt –
   Hintergrund, Apps und Systemzustand bleiben unangetastet.
 
 Das **manuelle** Wiederherstellen über die Schnellauswahl ist davon nicht betroffen
 und stellt weiterhin alles wieder her.
+
+> **Schutz laufender Arbeit:** Intervall-Timer und *Nach Ruhemodus* starten nie Apps,
+> starten keine Browser neu und blenden andere Apps weder aus noch beenden sie diese.
+> Das Beenden anderer Apps erfolgt ausschließlich beim manuellen Wechsel (Menü,
+> Widget, Kurzbefehl).
 
 ### Intervall
 
@@ -223,13 +236,18 @@ Profil. Wichtig:
   bleiben unverändert erhalten** – der Desktop wird *nicht* neu erfasst.
 - Geändert werden nur **Metadaten**: Name, Emoji, WLAN-Zuordnung, App-Auswahl,
   erfasste Systemzustände, Browser-Tabs und die Inhalts-Optionen.
+- Bereits gespeicherte **Systemzustände und Browser-Tabs bleiben erhalten**. Nur neu
+  hinzugefügte Apps, neu gewählte Systemzustände bzw. erstmals aktivierte Browser-Tabs
+  werden aktuell erfasst; abgewählte Inhalte entfallen.
 - Du kannst ein Profil hier auch **umbenennen**; Zeit- und WLAN-Regeln werden dabei
   aktualisiert.
 
 ### Profil löschen
 
 Untermenü **🗑 Profil löschen**: entfernt das gewählte Profil nach einer
-Sicherheitsabfrage endgültig. **Dies kann nicht rückgängig gemacht werden.**
+Sicherheitsabfrage endgültig. **Dies kann nicht rückgängig gemacht werden.** War das
+Profil als Auto-Restore-Profil gewählt, wird diese Auswahl zurückgesetzt und der
+Intervall-Timer angehalten; Zeit- und WLAN-Regeln für das Profil werden entfernt.
 
 ### Profil exportieren
 
@@ -240,7 +258,10 @@ Mac weitergeben.
 ### Profil importieren
 
 **📥 Profil importieren …** lädt eine zuvor exportierte `.json`-Profildatei und fügt
-sie deinen Profilen hinzu.
+sie deinen Profilen hinzu. Die Datei wird dabei geprüft: Ungültige oder unbekannte
+Werte (z. B. beim Systemzustand) werden verworfen. Existiert der Name bereits, erhält
+das importierte Profil eine Nummer (z. B. „Arbeit 2"); vorhandene Profile werden nie
+überschrieben.
 
 ### Wiederherstellungs-Schalter
 
@@ -248,17 +269,23 @@ Eine Gruppe globaler Schalter, die festlegen, **was** bei einer Wiederherstellun
 passiert:
 
 - **🔁 Beim Login Icons wiederherstellen** – Wendet beim Anmelden automatisch das
-  Auto-Restore-Profil an.
+  Auto-Restore-Profil an. Das geschieht nur bei einer echten Anmeldung (Start über
+  *Beim Anmelden starten* oder kurz nach dem Systemstart), nicht bei jedem manuellen
+  Start der App.
 - **😴 Nach Ruhemodus wiederherstellen** – Stellt das Auto-Restore-Profil wieder her,
-  nachdem der Mac aus dem Ruhezustand aufgewacht ist.
+  nachdem der Mac aus dem Ruhezustand aufgewacht ist (ohne Apps zu starten oder andere
+  Apps auszublenden/zu beenden).
 - **🖼 Hintergrund mit wiederherstellen** – Setzt beim Wiederherstellen auch das im
   Profil gespeicherte Hintergrundbild.
 - **🚀 Apps beim Wiederherstellen starten** – Startet die im Profil gespeicherten Apps
-  (und stellt nach Möglichkeit deren Fenster wieder her).
+  (und stellt nach Möglichkeit deren Fenster wieder her). Gilt für manuelle Wechsel
+  und das Wiederherstellen beim Login.
 - **🙈 Andere Apps beim Wechsel ausblenden** – Blendet alle nicht zum Profil gehörenden
-  Apps aus (wie ⌘H), ohne sie zu beenden.
+  Apps aus (wie ⌘H), ohne sie zu beenden. Gilt für manuelle Wechsel und das
+  Auto-Umschalten. Browser mit gespeicherten Profil-Tabs bleiben sichtbar.
 - **⛔ Andere Apps beim Wechsel beenden** – Beendet alle nicht zum Profil gehörenden
-  Apps. (Vorsicht: ungespeicherte Arbeit kann verloren gehen.)
+  Apps – ausschließlich bei einem manuellen Wechsel. (Vorsicht: ungespeicherte Arbeit
+  kann verloren gehen.)
 
 > Hinweis: *Ausblenden* und *Beenden* schließen sich gegenseitig sinnvoll aus – wähle
 > in der Regel höchstens eine der beiden Optionen.
@@ -273,8 +300,10 @@ werden.
 ### Beim Anmelden starten
 
 **🔓 Beim Anmelden starten** (Schalter) richtet einen **LaunchAgent** ein, sodass die
-App automatisch startet, sobald du dich an deinem Mac anmeldest. Der Schalter ist nur
-aktiv, wenn macOS den Dienst geladen hat; bei Fehlern zeigt die App eine Meldung an.
+App automatisch startet, sobald du dich an deinem Mac anmeldest. Der Schalter zeigt
+an, ob der Autostart eingerichtet ist; kann macOS den Dienst nicht laden, zeigt die App
+eine Meldung an. Wurde die App verschoben oder aktualisiert, passt sie einen bereits
+eingerichteten Autostart beim nächsten Start automatisch an.
 
 ### Kurzbefehle 1–9
 
@@ -310,6 +339,19 @@ Uhrzeit oder des verbundenen WLANs um.
   angelegten **Zeit- und WLAN-Regeln** aufgelistet. Ein Klick auf eine Regel mit dem
   Zusatz *(löschen)* entfernt sie.
 
+Gut zu wissen:
+
+- **Zeitregeln haben Vorrang** vor WLAN-Zuordnungen. Zeitspannen über Mitternacht
+  (z. B. `22:00-06:00`) werden unterstützt.
+- Für die **WLAN-Erkennung** verlangt macOS die Freigabe der **Ortungsdienste**. Beim
+  Aktivieren des Auto-Umschaltens fragt die App einmalig danach; ohne Freigabe meldet
+  macOS keinen WLAN-Namen und WLAN-Regeln greifen nicht. Die Freigabe findest du unter
+  *Systemeinstellungen › Datenschutz & Sicherheit › Ortungsdienste*.
+- Das Auto-Umschalten startet keine Apps und beendet keine anderen Apps. Ist *Andere
+  Apps beim Wechsel ausblenden* aktiv, werden fremde Apps ausgeblendet.
+- Ein Profil wird erst als angewandt gemerkt, wenn der Wechsel tatsächlich stattfand;
+  läuft gerade ein anderer Wechsel, wird es beim nächsten Durchlauf erneut versucht.
+
 ### Sprache
 
 Untermenü **🌐 Sprache**: stellt die Oberflächensprache ein:
@@ -324,6 +366,8 @@ Untermenü **🌐 Sprache**: stellt die Oberflächensprache ein:
 zeigt das Ergebnis an. Nach deiner Bestätigung lädt die App die DMG-Datei direkt in den Ordner
 **Downloads** und öffnet sie. Ziehe anschließend die App nach **Programme** und starte sie neu.
 Nur wenn ein Release keine DMG-Datei enthält, wird auf die Release-Seite verwiesen.
+Stellt GitHub eine SHA-256-Prüfsumme für die DMG-Datei bereit, wird der Download damit
+geprüft; stimmt sie nicht, wird die Datei gelöscht und das Update abgebrochen.
 
 ### Statuszeile
 
@@ -376,13 +420,21 @@ Fenster mit folgenden Feldern:
     nur für lokale, absolute Pfade erfasst. Für Browser-Fensterpositionen ist die
     Bedienungshilfen-Berechtigung erforderlich. Bereits vorhandene Profile müssen einmal
     überschrieben werden, damit die Browserposition separat im Profil gespeichert wird.
-- **Systemzustand** – optionale Schalter wie Dark Mode, Lautstärke, Helligkeit,
-  „Nicht stören", Dock und Desktop-Ansicht.
+- **Systemzustand** – optionale Schalter für Dark Mode, Lautstärke, Helligkeit, Dock
+  und Desktop-Ansicht (Icon-Größe/Anordnung). Unveränderte Dock-Einstellungen lösen
+  keinen Dock-Neustart aus. „Nicht stören" wird nicht mehr angeboten, weil macOS dafür
+  keine zuverlässige Schnittstelle bietet; ältere Profile mit dieser Option schalten
+  den Fokus weiterhin über die Kurzbefehle „Fokus ein"/„Fokus aus", sofern vorhanden.
 - **App-Liste** – Auswahl, welche der laufenden Apps zum Profil gehören sollen
   (mit *Alle auswählen*).
 
 Beim **Bearbeiten** eines bestehenden Profils bleiben die bereits gespeicherten
-Icon-/Hintergrunddaten erhalten; nur die hier sichtbaren Angaben werden aktualisiert.
+Icon-/Hintergrunddaten, Systemzustände und Browser-Tabs erhalten; nur die hier
+sichtbaren Angaben werden aktualisiert.
+
+Private bzw. Inkognito-Fenster von Chrome und Edge werden beim Erfassen von
+Browser-Tabs ausgelassen. Antwortet ein laufender Browser beim Überschreiben nicht,
+behält das Profil dessen bisherige Tabs; die Meldung nennt den betroffenen Browser.
 
 ---
 
@@ -432,6 +484,16 @@ geöffnetem Browser. Erst dadurch erhalten ältere Profile die separat gespeiche
 Die Profilpunkte im Menü und im Widget bleiben deaktiviert, bis der laufende Wechsel vollständig
 abgeschlossen ist. Auch Kurzbefehle und automatische Regeln starten währenddessen keinen zweiten
 Wechsel. Dadurch können sich Browser-Beenden, Tab-Start und Fensterwiederherstellung nicht überlagern.
+
+**Das Auto-Umschalten per WLAN reagiert nicht.**
+Erlaube der App unter *Systemeinstellungen › Datenschutz & Sicherheit ›
+Ortungsdienste* den Zugriff. Ohne diese Freigabe gibt macOS den WLAN-Namen nicht
+heraus.
+
+**Ich erhalte keine Benachrichtigungen.**
+Die App nutzt die macOS-Mitteilungen und fragt beim ersten Mal nach einer Erlaubnis.
+Wurde sie abgelehnt, aktiviere sie unter *Systemeinstellungen › Mitteilungen ›
+Desktop Profile Manager*.
 
 **Das Widget ist nach einem Neustart wieder ausgeblendet.**
 Das sollte nicht passieren – die Sichtbarkeit wird dauerhaft gespeichert. Schalte das

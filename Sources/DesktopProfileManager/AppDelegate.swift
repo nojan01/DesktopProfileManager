@@ -1,4 +1,5 @@
 import AppKit
+import UserNotifications
 import Foundation
 
 /// Verhindert, dass während eines laufenden Profilwechsels ein zweiter Wechsel
@@ -49,7 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let restoreActivity = RestoreActivityGate()
     var isRestoreInProgress: Bool { restoreActivity.isActive }
 
-    private let githubRepo = "nojan01/IconGuard"
+    private let githubRepo = "nojan01/DesktopProfileManager"
     private let launchDelayOptions: [Double] = [0, 0.5, 1, 1.5, 2, 3, 5]
 
     // Globale Kurzbefehle
@@ -57,6 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Automatisches Umschalten (Zeit/WLAN)
     var autoSwitchTimer: Timer?
     var lastAutoSwitch: String?
+    var isAutoSwitchCheckRunning = false
 
     // Wird beim App-Beenden gesetzt, damit das Schließen des Widget-Fensters
     // die gespeicherte Sichtbarkeit nicht zurücksetzt.
@@ -89,7 +91,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if config.get("auto_restore_enabled", false) {
             startAutoRestore()
         }
-        if config.get("restore_on_login", true) {
+        LaunchAgentManager.refreshInstalledPlistIfNeeded()
+        if config.get("restore_on_login", true),
+           Self.shouldRestoreOnLogin(arguments: CommandLine.arguments,
+                                     systemUptime: ProcessInfo.processInfo.systemUptime) {
             restoreOnLogin()
         }
 
@@ -129,9 +134,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !profile.isEmpty, Profiles.profilePath(profile).map({ FileManager.default.fileExists(atPath: $0.path) }) == true {
             let iconsOnly = config.get("auto_restore_icons_only", false)
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                self.doRestore(profile, notify: false, iconsOnly: iconsOnly)
+                self.doRestore(profile, trigger: .wake, notify: false, iconsOnly: iconsOnly)
             }
         }
+    }
+
+    /// Nur ein Start durch den Autostart-Agenten (oder kurz nach dem Hochfahren
+    /// bei älteren Agenten ohne Kennzeichen) gilt als Anmeldung. Ein manueller
+    /// Start oder ein Neustart nach einem Update stellt nichts wieder her.
+    static func shouldRestoreOnLogin(arguments: [String], systemUptime: TimeInterval) -> Bool {
+        arguments.contains(LaunchAgentManager.loginArgument) || systemUptime < 600
     }
 
     // MARK: - Menüaufbau
@@ -378,7 +390,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let autostartItem = NSMenuItem(title: "🔓 " + L("Beim Anmelden starten", "Start at login"),
                                        action: #selector(onToggleAutostart), keyEquivalent: "")
         autostartItem.target = self
-        autostartItem.state = LaunchAgentManager.isEnabled() ? .on : .off
+        autostartItem.state = LaunchAgentManager.isInstalled() ? .on : .off
         settings.addItem(autostartItem)
         settings.addItem(.separator())
 
@@ -517,10 +529,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func onRestore(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String else { return }
-        doRestore(name, markActive: true)
+        doRestore(name, trigger: .manual, markActive: true)
     }
 
-    func doRestore(_ name: String, notify: Bool = true, includeApps: Bool? = nil, markActive: Bool = false, iconsOnly: Bool = false) {
+    /// Startet eine Wiederherstellung. Liefert `false`, wenn bereits ein
+    /// Profilwechsel läuft und die Anfrage deshalb nicht angenommen wurde.
+    @discardableResult
+    func doRestore(_ name: String, trigger: RestoreTrigger, notify: Bool = true,
+                   markActive: Bool = false, iconsOnly: Bool = false) -> Bool {
         guard restoreActivity.begin() else {
             if notify {
                 Notifier.show(
@@ -528,12 +544,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     L("Bitte warte, bis der laufende Profilwechsel abgeschlossen ist.",
                       "Please wait for the current profile switch to finish."))
             }
-            return
+            return false
         }
-        let incApps = includeApps ?? config.get("restore_apps", true)
+        let incApps = trigger.allowsAppLaunch && config.get("restore_apps", true)
         let incWallpaper = config.get("restore_wallpaper", true)
-        let hideOthers = config.get("hide_other_apps", false)
-        let quitOthers = config.get("quit_other_apps", false)
+        let hideOthers = trigger.allowsHideOthers && config.get("hide_other_apps", false)
+        let quitOthers = trigger.allowsQuitOthers && config.get("quit_other_apps", false)
         let delay = config.get("app_launch_delay", 1.5)
         // Menü und Widget zeigen sofort an, dass keine weitere Umschaltung
         // angenommen wird. Einstellungen und Beenden bleiben bedienbar.
@@ -562,6 +578,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if notify { Notifier.show(L("Profil '\(name)'", "Profile '\(name)'"), msg) }
             }
         }
+        return true
     }
 
     @objc func onSaveNew() {
@@ -594,9 +611,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     Notifier.show(L("Fehler", "Error"), error)
                 } else {
                     var message = L("\(r.count) Icons gesichert", "\(r.count) icons saved")
-                    if r.preservedBrowserTabs {
-                        message += "\n" + L("Safari lieferte keine Tabs; die zuvor gespeicherten Tabs wurden beibehalten.",
-                                              "Safari did not provide tabs; the previously saved tabs were kept.")
+                    if !r.preservedBrowserTabs.isEmpty {
+                        let browsers = r.preservedBrowserTabs.joined(separator: ", ")
+                        message += "\n" + L("\(browsers) lieferte keine Tabs; die zuvor gespeicherten Tabs wurden beibehalten.",
+                                              "\(browsers) did not provide tabs; the previously saved tabs were kept.")
                     }
                     Notifier.show(L("Profil '\(name)' gespeichert", "Profile '\(name)' saved"), message)
                 }
@@ -651,10 +669,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let response = alert.runModal()
         NSApp.setActivationPolicy(.accessory)
         if response == .alertFirstButtonReturn {
-            _ = Profiles.delete(name)
-            if activeProfile == name { activeProfile = nil }
+            guard Profiles.delete(name) else {
+                Notifier.show(L("Fehler", "Error"),
+                              L("Profil '\(name)' konnte nicht gelöscht werden.",
+                                "Profile '\(name)' could not be deleted."))
+                return
+            }
+            removeReferences(toDeletedProfile: name)
             buildMenu()
         }
+    }
+
+    /// Entfernt Verweise auf ein gelöschtes Profil, damit Timer, Aufwachen und
+    /// Auto-Umschaltung nicht ins Leere laufen.
+    private func removeReferences(toDeletedProfile name: String) {
+        if activeProfile == name { activeProfile = nil }
+        if lastAutoSwitch == name { lastAutoSwitch = nil }
+        if config.get("auto_restore_profile", "") == name {
+            config.set("auto_restore_profile", "")
+            stopAutoRestore()
+        }
+        let rules = config.get("auto_switch_rules", [[String: Any]]())
+        let remaining = Profiles.autoSwitchRules(rules, removingProfile: name)
+        if remaining.count != rules.count {
+            config.set("auto_switch_rules", remaining)
+        }
+        config.save()
     }
 
     @objc func onToggleAutoRestore() {
@@ -730,12 +770,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func onOpenVisibility() {
+        visibilityWindow?.close()
         let window = VisibilityWindow(app: self)
         visibilityWindow = window
         window.show()
     }
 
     @objc func onOpenAppSelection() {
+        appSelectionWindow?.close()
         let window = AppSelectionWindow(app: self)
         appSelectionWindow = window
         window.show()
@@ -821,14 +863,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard response == .OK, let src = panel.url else { return }
 
         guard let data = try? Data(contentsOf: src),
-              var obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              obj["positions"] != nil else {
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              obj["positions"] is [String: Any] else {
             Notifier.show(L("Fehler", "Error"),
                           L("Datei ist kein gültiges Profil.", "File is not a valid profile."))
             return
         }
 
-        // Namen bei Konflikt durchnummerieren
         let rawBase = (obj["profile"] as? String) ?? src.deletingPathExtension().lastPathComponent
         guard let base = Profiles.importName(rawBase) else {
             Notifier.show(L("Fehler", "Error"),
@@ -836,21 +877,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             "The file does not contain a valid profile name."))
             return
         }
-        var name = base
-        var counter = 2
-        while let path = Profiles.profilePath(name), FileManager.default.fileExists(atPath: path.path) {
-            name = "\(base) (\(counter))"
-            counter += 1
-        }
-        obj["profile"] = name
-        guard let dest = Profiles.profilePath(name) else { return }
-        try? FileManager.default.createDirectory(at: Paths.profilesDir, withIntermediateDirectories: true)
-        if let out = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted]) {
-            try? out.write(to: dest, options: .atomic)
+        // Namen bei Konflikt durchnummerieren
+        let name = Profiles.uniqueImportName(base: base, exists: Profiles.exists)
+        do {
+            try Profiles.writeImported(obj, as: name)
             Notifier.show(L("Profil importiert", "Profile imported"),
                           L("'\(name)' wurde hinzugefügt.", "'\(name)' was added."))
-            buildMenu()
+        } catch {
+            Notifier.show(L("Fehler", "Error"), error.localizedDescription)
         }
+        buildMenu()
     }
 
     @objc func onCheckUpdate() {
@@ -1072,6 +1108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Setup-Fenster
 
     func openSetupWindow(editName: String?) {
+        setupWindow?.close()
         let window = ProfileSetupWindow(app: self, editName: editName)
         setupWindow = window
         window.show()
@@ -1087,7 +1124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let profile = self.config.get("auto_restore_profile", "")
             if !profile.isEmpty {
                 let iconsOnly = self.config.get("auto_restore_icons_only", false)
-                self.doRestore(profile, notify: false, includeApps: false, iconsOnly: iconsOnly)
+                self.doRestore(profile, trigger: .timer, notify: false, iconsOnly: iconsOnly)
             }
         }
     }
@@ -1101,14 +1138,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let profile = config.get("auto_restore_profile", "")
         if !profile.isEmpty, Profiles.profilePath(profile).map({ FileManager.default.fileExists(atPath: $0.path) }) == true {
             let iconsOnly = config.get("auto_restore_icons_only", false)
-            doRestore(profile, notify: false, iconsOnly: iconsOnly)
+            doRestore(profile, trigger: .login, notify: false, iconsOnly: iconsOnly)
         }
     }
 }
 
-/// Einfache Benachrichtigungen über osascript (kein Bundle nötig).
+/// Benachrichtigungen. Im App-Bundle über das UserNotifications-Framework
+/// (erscheinen unter dem Namen dieser App), sonst – etwa bei `swift run` – über
+/// osascript.
 enum Notifier {
+    private static let presenter = NotificationPresenter()
+
+    static var canUseUserNotifications: Bool {
+        Bundle.main.bundleURL.pathExtension == "app" && Bundle.main.bundleIdentifier != nil
+    }
+
     static func show(_ title: String, _ message: String) {
+        if canUseUserNotifications {
+            presenter.show(title: title, message: message)
+        } else {
+            showViaAppleScript(title, message)
+        }
+    }
+
+    fileprivate static func showViaAppleScript(_ title: String, _ message: String) {
         let t = Shell.esc(title)
         let m = Shell.esc(message.replacingOccurrences(of: "\n", with: " "))
         // Eine verzögerte Systembenachrichtigung darf weder Menü noch nächsten
@@ -1118,5 +1171,38 @@ enum Notifier {
                 "display notification \"\(m)\" with title \"\(Paths.appName)\" subtitle \"\(t)\"",
                 timeout: 5)
         }
+    }
+}
+
+private final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
+    private lazy var center: UNUserNotificationCenter = {
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        return center
+    }()
+
+    func show(title: String, message: String) {
+        center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+            if error != nil {
+                // Framework nicht nutzbar (z. B. unsignierter Build) → Rückfall.
+                Notifier.showViaAppleScript(title, message)
+                return
+            }
+            // Eine Ablehnung durch den Nutzer wird respektiert.
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = Paths.appName
+            content.subtitle = title
+            content.body = message
+            let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+            self.center.add(request)
+        }
+    }
+
+    /// Auch anzeigen, während ein Fenster dieser App aktiv ist.
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .list])
     }
 }

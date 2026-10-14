@@ -15,6 +15,7 @@ final class ProfileWidget: NSObject, NSWindowDelegate {
     private weak var app: AppDelegate?
     private var panel: NSPanel?
     private var profileNames: [String] = []
+    private var savePositionWork: DispatchWorkItem?
 
     init(app: AppDelegate) {
         self.app = app
@@ -69,7 +70,12 @@ final class ProfileWidget: NSObject, NSWindowDelegate {
             panel.delegate = self
             self.panel = panel
 
-            if let pos = app.config.values["widget_pos"] as? [Double], pos.count == 2 {
+            // Eine gespeicherte Position auf einem inzwischen getrennten
+            // Bildschirm würde das Widget unerreichbar machen.
+            if let pos = app.config.values["widget_pos"] as? [Double], pos.count == 2,
+               Self.isVisible(origin: NSPoint(x: pos[0], y: pos[1]),
+                              size: NSSize(width: width, height: contentHeight),
+                              screens: NSScreen.screens.map(\.visibleFrame)) {
                 panel.setFrameOrigin(NSPoint(x: pos[0], y: pos[1]))
             } else if let screen = NSScreen.main {
                 let vf = screen.visibleFrame
@@ -136,19 +142,38 @@ final class ProfileWidget: NSObject, NSWindowDelegate {
     @objc func onProfileButton(_ sender: NSButton) {
         let idx = sender.tag
         if idx >= 0 && idx < profileNames.count {
-            app?.doRestore(profileNames[idx], markActive: true)
+            app?.doRestore(profileNames[idx], trigger: .manual, markActive: true)
+        }
+    }
+
+    /// Mindestens ein greifbarer Teil des Widgets muss auf einem Bildschirm liegen.
+    static func isVisible(origin: NSPoint, size: NSSize, screens: [NSRect]) -> Bool {
+        let frame = NSRect(origin: origin, size: size)
+        return screens.contains { screen in
+            let overlap = screen.intersection(frame)
+            return !overlap.isNull && overlap.width >= 40 && overlap.height >= 20
         }
     }
 
     // MARK: - NSWindowDelegate
 
+    /// Beim Ziehen feuert `windowDidMove` sehr oft; gespeichert wird erst, wenn
+    /// die Bewegung kurz ruht.
     func windowDidMove(_ notification: Notification) {
-        guard let panel = panel else { return }
-        app?.config.set("widget_pos", [Double(panel.frame.origin.x), Double(panel.frame.origin.y)])
-        app?.config.save()
+        savePositionWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, let panel = self.panel else { return }
+            self.app?.config.set("widget_pos", [Double(panel.frame.origin.x), Double(panel.frame.origin.y)])
+            self.app?.config.save()
+        }
+        savePositionWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
     }
 
     func windowWillClose(_ notification: Notification) {
+        savePositionWork?.perform()
+        savePositionWork?.cancel()
+        savePositionWork = nil
         panel = nil
         app?.widgetClosed()
     }

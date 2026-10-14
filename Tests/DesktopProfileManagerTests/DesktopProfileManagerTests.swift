@@ -109,14 +109,14 @@ final class DesktopProfileManagerTests: XCTestCase {
             captured: [:],
             existing: ["com.apple.Safari": ["https://example.com"]],
             captureRequested: true)
-        XCTAssertTrue(retained.preserved)
+        XCTAssertEqual(retained.preserved, ["Safari"])
         XCTAssertEqual(retained.tabs, ["com.apple.Safari": ["https://example.com"]])
 
         let replacement = BrowserTabs.tabsForSave(
             captured: ["com.apple.Safari": ["https://new.example"]],
             existing: ["com.apple.Safari": ["https://example.com"]],
             captureRequested: true)
-        XCTAssertFalse(replacement.preserved)
+        XCTAssertTrue(replacement.preserved.isEmpty)
         XCTAssertEqual(replacement.tabs, ["com.apple.Safari": ["https://new.example"]])
     }
 

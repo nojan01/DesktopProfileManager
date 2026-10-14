@@ -153,27 +153,40 @@ enum DesktopIcons {
         return getAllItems().filter { $0.hidden }.map { $0.name }
     }
 
+    /// Liefert nur die Einträge, deren gewünschter Zustand vom aktuellen
+    /// abweicht. Nicht (mehr) vorhandene Dateien bleiben enthalten, damit sie
+    /// beim Anwenden als Fehler gezählt werden.
+    static func visibilityChanges(desired: [(name: String, hidden: Bool)],
+                                  current: [DesktopItem]) -> [(name: String, hidden: Bool)] {
+        let currentState = Dictionary(current.map { ($0.name, $0.hidden) },
+                                      uniquingKeysWith: { first, _ in first })
+        return desired.filter { currentState[$0.name] != $0.hidden }
+    }
+
     /// Wendet mehrere Sichtbarkeitsänderungen an und aktualisiert Finder danach
-    /// genau einmal.
+    /// höchstens einmal. Unveränderte Einträge lösen keinen Finder-Neustart aus.
     @discardableResult
-    static func applyVisibility(_ changes: [(name: String, hidden: Bool)])
+    static func applyVisibility(_ desired: [(name: String, hidden: Bool)])
         -> (success: Int, failed: Int) {
-        var success = 0
+        let changes = visibilityChanges(desired: desired, current: getAllItems())
+        var success = desired.count - changes.count
         var failed = 0
-        var hidItem = false
+        var changed = false
 
         for change in changes {
             if setHidden(change.name, change.hidden) {
                 success += 1
-                if change.hidden { hidItem = true }
+                changed = true
             } else {
                 failed += 1
             }
         }
 
-        if hidItem {
+        // Versteckte Icons erscheinen nur dann ausgegraut, wenn Finder versteckte
+        // Dateien anzeigt. Nur in diesem Fall ist ein Finder-Neustart nötig.
+        if desired.contains(where: { $0.hidden }) && finderShowsHiddenFiles() {
             enforceFinderHidesHiddenFiles()
-        } else if success > 0 {
+        } else if changed {
             refreshFinderDesktop()
         }
         return (success, failed)
@@ -201,6 +214,15 @@ enum DesktopIcons {
         } catch {
             return false
         }
+    }
+
+    private static func finderShowsHiddenFiles() -> Bool {
+        let result = Shell.run("/usr/bin/defaults", ["read", "com.apple.finder", "AppleShowAllFiles"])
+        return result.code == 0 && isTruthyDefaultsValue(result.output)
+    }
+
+    static func isTruthyDefaultsValue(_ value: String) -> Bool {
+        ["1", "true", "yes"].contains(value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
     }
 
     /// macOS zeigt unsichtbare Dateien ausgegraut an, wenn Finders globale

@@ -6,14 +6,29 @@ import Foundation
 enum SystemState {
 
     /// Reihenfolge + Labels der Optionen (Schlüssel identisch zur Python-App).
+    /// „Nicht stören" ist nicht mehr auswählbar: macOS bietet dafür keine
+    /// zuverlässige Schnittstelle mehr. Ältere Profile mit `dnd` werden beim
+    /// Wiederherstellen weiterhin über Kurzbefehle bedient.
     static let optionOrder: [(key: String, de: String, en: String)] = [
         ("appearance", "Erscheinungsbild (hell/dunkel)", "Appearance (light/dark)"),
         ("volume", "Lautstärke", "Volume"),
         ("brightness", "Bildschirmhelligkeit", "Screen brightness"),
-        ("dnd", "Nicht stören / Fokus", "Do Not Disturb / Focus"),
         ("dock", "Dock-Konfiguration", "Dock configuration"),
         ("desktop_view", "Icon-Anzeige (Größe/Anordnung)", "Icon view (size/arrangement)"),
     ]
+
+    /// Gültige Finder-Anordnungen (Finder-Skriptterminologie). Nur diese Werte
+    /// werden in AppleScript übernommen – Profile sind importierbare Dateien.
+    /// Die Vier-Zeichen-Codes vermeiden Mehrdeutigkeiten wie `is not arranged`.
+    static let desktopArrangementCodes: [(name: String, code: String)] = [
+        ("not arranged", "narr"), ("snap to grid", "grda"), ("arranged by name", "nama"),
+        ("arranged by modification date", "mdta"), ("arranged by creation date", "cdta"),
+        ("arranged by size", "siza"), ("arranged by kind", "kina"), ("arranged by label", "laba"),
+    ]
+    static var desktopArrangements: [String] { desktopArrangementCodes.map(\.name) }
+    static let dockOrientations: Set<String> = ["left", "bottom", "right"]
+    static let iconSizeRange = 16...512
+    static let dockTileSizeRange = 16...128
 
     // MARK: - Erfassen / Wiederherstellen
 
@@ -28,9 +43,66 @@ enum SystemState {
     }
 
     static func restore(_ state: [String: Any]) {
-        for (key, value) in state {
+        for (key, value) in sanitize(state) {
             setValue(key, value)
         }
+    }
+
+    /// Prüft einen (ggf. importierten) Systemzustand auf Typ und Wertebereich.
+    /// Unbekannte Schlüssel und ungültige Werte werden verworfen.
+    static func sanitize(_ state: [String: Any]) -> [String: Any] {
+        var result: [String: Any] = [:]
+        for (key, value) in state {
+            switch key {
+            case "appearance", "dnd":
+                if let b = JSONNumber.bool(value) { result[key] = b }
+            case "volume":
+                if let v = JSONNumber.int(value) { result[key] = max(0, min(100, v)) }
+            case "brightness":
+                if let v = JSONNumber.double(value) { result[key] = max(0.0, min(1.0, v)) }
+            case "dock":
+                if let d = value as? [String: Any] {
+                    let dock = sanitizeDock(d)
+                    if !dock.isEmpty { result[key] = dock }
+                }
+            case "desktop_view":
+                if let d = value as? [String: Any] {
+                    let view = sanitizeDesktopView(d)
+                    if !view.isEmpty { result[key] = view }
+                }
+            default:
+                break
+            }
+        }
+        return result
+    }
+
+    static func sanitizeDock(_ settings: [String: Any]) -> [String: Any] {
+        var result: [String: Any] = [:]
+        if let o = settings["orientation"] as? String, dockOrientations.contains(o) {
+            result["orientation"] = o
+        }
+        if let t = JSONNumber.int(settings["tilesize"]) {
+            result["tilesize"] = clamp(t, dockTileSizeRange)
+        }
+        if let a = JSONNumber.bool(settings["autohide"]) { result["autohide"] = a }
+        if let m = JSONNumber.bool(settings["magnification"]) { result["magnification"] = m }
+        return result
+    }
+
+    static func sanitizeDesktopView(_ settings: [String: Any]) -> [String: Any] {
+        var result: [String: Any] = [:]
+        if let a = settings["arrangement"] as? String, desktopArrangements.contains(a) {
+            result["arrangement"] = a
+        }
+        if let s = JSONNumber.int(settings["icon_size"]) {
+            result["icon_size"] = clamp(s, iconSizeRange)
+        }
+        return result
+    }
+
+    private static func clamp(_ value: Int, _ range: ClosedRange<Int>) -> Int {
+        max(range.lowerBound, min(range.upperBound, value))
     }
 
     private static func getValue(_ key: String) -> Any? {
@@ -38,19 +110,18 @@ enum SystemState {
         case "appearance": return getDarkMode()
         case "volume": return getVolume()
         case "brightness": return getBrightness()
-        case "dnd": return nil // nicht zuverlässig lesbar
         case "dock": return getDockSettings()
         case "desktop_view": return getDesktopView()
         default: return nil
         }
     }
 
+    /// Erwartet bereits über `sanitize` geprüfte Werte.
     private static func setValue(_ key: String, _ value: Any) {
         switch key {
         case "appearance": if let b = value as? Bool { setDarkMode(b) }
         case "volume": if let v = value as? Int { setVolume(v) }
         case "brightness": if let v = value as? Double { setBrightness(v) }
-                           else if let v = value as? Int { setBrightness(Double(v)) }
         case "dnd": if let b = value as? Bool { setDoNotDisturb(b) }
         case "dock": if let d = value as? [String: Any] { setDockSettings(d) }
         case "desktop_view": if let d = value as? [String: Any] { setDesktopView(d) }
@@ -104,17 +175,20 @@ enum SystemState {
         Shell.run(exe, [String(v)])
     }
 
-    // MARK: - Nicht stören / Fokus (best effort)
+    // MARK: - Nicht stören / Fokus (nur ältere Profile, best effort)
+
+    /// Kurzbefehle, die der Nutzer selbst anlegen kann. Seit macOS 12 gibt es
+    /// keine dokumentierte Schnittstelle mehr; der frühere `defaults`-Weg samt
+    /// Neustart des NotificationCenter wirkt nicht mehr und entfällt daher.
+    static func doNotDisturbShortcutNames(enabled: Bool) -> [String] {
+        enabled ? ["Fokus ein", "Focus On"] : ["Fokus aus", "Focus Off"]
+    }
 
     static func setDoNotDisturb(_ enabled: Bool) {
-        let shortcut = enabled ? "Fokus ein" : "Fokus aus"
-        if let sc = which("shortcuts") {
-            if Shell.run(sc, ["run", shortcut], timeout: 10).code == 0 { return }
+        guard let sc = which("shortcuts") else { return }
+        for name in doNotDisturbShortcutNames(enabled: enabled) {
+            if Shell.run(sc, ["run", name], timeout: 10).code == 0 { return }
         }
-        let val = enabled ? "true" : "false"
-        Shell.run("/usr/bin/defaults", ["-currentHost", "write",
-            "com.apple.notificationcenterui", "doNotDisturb", "-bool", val])
-        Shell.run("/usr/bin/killall", ["NotificationCenter"])
     }
 
     // MARK: - Dock
@@ -132,55 +206,98 @@ enum SystemState {
         return result
     }
 
+    /// Liefert nur die Dock-Werte, die vom aktuellen Zustand abweichen. Ohne
+    /// diese Prüfung würde jeder Timer-Lauf das Dock per `killall` neu starten.
+    static func dockChanges(desired: [String: Any], current: [String: Any]) -> [String: Any] {
+        let desired = sanitizeDock(desired)
+        let current = sanitizeDock(current)
+        return desired.filter { key, value in
+            switch (value, current[key]) {
+            case let (a as String, b as String): return a != b
+            case let (a as Int, b as Int): return a != b
+            case let (a as Bool, b as Bool): return a != b
+            default: return true
+            }
+        }
+    }
+
     static func setDockSettings(_ settings: [String: Any]) {
-        var changed = false
+        let changes = dockChanges(desired: settings, current: getDockSettings())
+        guard !changes.isEmpty else { return }
         func write(_ key: String, _ type: String, _ arg: String) {
             Shell.run("/usr/bin/defaults", ["write", "com.apple.dock", key, "-\(type)", arg])
-            changed = true
         }
-        if let o = settings["orientation"] as? String { write("orientation", "string", o) }
-        if let t = settings["tilesize"] as? Int { write("tilesize", "int", String(t)) }
-        if let a = settings["autohide"] as? Bool { write("autohide", "bool", a ? "true" : "false") }
-        if let m = settings["magnification"] as? Bool { write("magnification", "bool", m ? "true" : "false") }
-        if changed { Shell.run("/usr/bin/killall", ["Dock"]) }
+        if let o = changes["orientation"] as? String { write("orientation", "string", o) }
+        if let t = changes["tilesize"] as? Int { write("tilesize", "int", String(t)) }
+        if let a = changes["autohide"] as? Bool { write("autohide", "bool", a ? "true" : "false") }
+        if let m = changes["magnification"] as? Bool { write("magnification", "bool", m ? "true" : "false") }
+        Shell.run("/usr/bin/killall", ["Dock"])
     }
 
     // MARK: - Desktop-Icon-Anzeige
 
+    /// `icon view options of desktop` ist nicht lesbar; nur das Fenster des
+    /// Schreibtischs liefert die Optionen. Die Anordnung wird über einen
+    /// Vergleich ermittelt, weil sich der Aufzählungswert nicht in Text
+    /// umwandeln lässt.
     static func getDesktopView() -> [String: Any]? {
-        let script = """
-        tell application "Finder"
-            set o to icon view options of desktop
-            set ag to (arrangement of o) as string
-            set isize to (icon size of o) as string
-            return ag & "||" & isize
-        end tell
-        """
-        guard let raw = Shell.runAppleScript(script) else { return nil }
+        var lines = [
+            "tell application \"Finder\"",
+            "  set o to icon view options of window of desktop",
+            "  set ag to arrangement of o",
+            "  set s to \"\"",
+        ]
+        for (index, entry) in desktopArrangementCodes.enumerated() {
+            lines.append("  \(index == 0 ? "if" : "else if") ag is «constant ****\(entry.code)» then")
+            lines.append("    set s to \"\(entry.name)\"")
+        }
+        lines.append("  end if")
+        lines.append("  return s & \"||\" & ((icon size of o) as integer as string)")
+        lines.append("end tell")
+        guard let raw = Shell.runAppleScript(lines.joined(separator: "\n")) else { return nil }
         let parts = raw.components(separatedBy: "||")
         if parts.count != 2 { return nil }
-        var result: [String: Any] = ["arrangement": parts[0].trimmingCharacters(in: .whitespaces)]
-        if let s = Double(parts[1]) { result["icon_size"] = Int(s) }
-        return result
+        var result: [String: Any] = [:]
+        let arrangement = parts[0].trimmingCharacters(in: .whitespaces)
+        if desktopArrangements.contains(arrangement) { result["arrangement"] = arrangement }
+        if let s = Double(parts[1].trimmingCharacters(in: .whitespaces)) { result["icon_size"] = Int(s) }
+        return result.isEmpty ? nil : result
     }
 
     static func setDesktopView(_ settings: [String: Any]) {
-        var lines = ["tell application \"Finder\"", "  set o to icon view options of desktop"]
-        if let arr = settings["arrangement"] as? String, !arr.isEmpty {
+        guard let script = desktopViewScript(settings) else { return }
+        _ = Shell.runAppleScript(script)
+    }
+
+    /// Baut das Finder-Skript ausschließlich aus geprüften Werten (Whitelist bzw.
+    /// begrenzte Ganzzahl) – Profilinhalte werden nie als AppleScript-Code
+    /// übernommen.
+    static func desktopViewScript(_ settings: [String: Any]) -> String? {
+        let view = sanitizeDesktopView(settings)
+        if view.isEmpty { return nil }
+        var lines = ["tell application \"Finder\"", "  set o to icon view options of window of desktop"]
+        if let arr = view["arrangement"] as? String,
+           let code = desktopArrangementCodes.first(where: { $0.name == arr })?.code {
             lines.append("  try")
-            lines.append("    set arrangement of o to \(arr)")
+            lines.append("    set arrangement of o to «constant ****\(code)»")
             lines.append("  end try")
         }
-        if let size = settings["icon_size"] as? Int {
+        if let size = view["icon_size"] as? Int {
             lines.append("  set icon size of o to \(size)")
         }
         lines.append("end tell")
-        _ = Shell.runAppleScript(lines.joined(separator: "\n"))
+        return lines.joined(separator: "\n")
     }
 
     // MARK: - Helfer
 
+    /// Aus dem Finder gestartete Apps erben nur den minimalen System-PATH;
+    /// Homebrew-Werkzeuge werden deshalb zusätzlich direkt gesucht.
     private static func which(_ tool: String) -> String? {
+        for dir in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"] {
+            let path = "\(dir)/\(tool)"
+            if FileManager.default.isExecutableFile(atPath: path) { return path }
+        }
         let r = Shell.run("/usr/bin/which", [tool])
         return r.code == 0 && !r.output.isEmpty ? r.output : nil
     }

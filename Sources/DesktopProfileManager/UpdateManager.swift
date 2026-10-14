@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Lädt Release-Informationen und signierte DMG-Updates von GitHub herunter.
@@ -6,6 +7,8 @@ enum UpdateManager {
         let version: String
         let downloadURL: URL?
         let assetName: String?
+        /// SHA-256 aus dem GitHub-Feld `digest` (kleingeschrieben, hex), falls vorhanden.
+        var sha256: String? = nil
     }
 
     enum UpdateError: LocalizedError {
@@ -14,14 +17,24 @@ enum UpdateManager {
         case unexpectedStatus(Int)
         case invalidRelease
         case missingDMG
+        case checksumMismatch
 
         var errorDescription: String? {
             switch self {
-            case .invalidURL: return "Ungültige Update-Adresse."
-            case .invalidResponse: return "Ungültige Antwort vom Update-Server."
-            case .unexpectedStatus(let status): return "Update-Server antwortete mit Status \(status)."
-            case .invalidRelease: return "Die Release-Informationen sind unvollständig."
-            case .missingDMG: return "Dieses Release enthält keine DMG-Datei."
+            case .invalidURL:
+                return L("Ungültige Update-Adresse.", "Invalid update address.")
+            case .invalidResponse:
+                return L("Ungültige Antwort vom Update-Server.", "Invalid response from the update server.")
+            case .unexpectedStatus(let status):
+                return L("Update-Server antwortete mit Status \(status).",
+                         "Update server responded with status \(status).")
+            case .invalidRelease:
+                return L("Die Release-Informationen sind unvollständig.", "The release information is incomplete.")
+            case .missingDMG:
+                return L("Dieses Release enthält keine DMG-Datei.", "This release does not contain a DMG file.")
+            case .checksumMismatch:
+                return L("Die Prüfsumme der heruntergeladenen Datei stimmt nicht. Die Datei wurde verworfen.",
+                         "The checksum of the downloaded file does not match. The file was discarded.")
             }
         }
     }
@@ -76,7 +89,28 @@ enum UpdateManager {
         }
         let name = dmgAsset?["name"] as? String
         let url = (dmgAsset?["browser_download_url"] as? String).flatMap(URL.init(string:))
-        return Release(version: version, downloadURL: url, assetName: name)
+        return Release(version: version, downloadURL: url, assetName: name,
+                       sha256: sha256(fromDigest: dmgAsset?["digest"]))
+    }
+
+    /// GitHub liefert für Release-Assets z. B. "sha256:3f2a…".
+    static func sha256(fromDigest raw: Any?) -> String? {
+        guard let digest = raw as? String else { return nil }
+        let parts = digest.split(separator: ":", maxSplits: 1)
+        guard parts.count == 2, parts[0].lowercased() == "sha256" else { return nil }
+        let hex = parts[1].lowercased()
+        guard hex.count == 64, hex.allSatisfy({ $0.isHexDigit }) else { return nil }
+        return hex
+    }
+
+    static func sha256Hex(of url: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
+            hasher.update(data: chunk)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     static func downloadDMG(_ release: Release, completion: @escaping (Result<URL, Error>) -> Void) {
@@ -103,6 +137,13 @@ enum UpdateManager {
             }
             do {
                 let manager = FileManager.default
+                // Ältere Releases ohne `digest` verlassen sich allein auf die
+                // Signatur/Notarisierung des DMG.
+                if let expected = release.sha256, try sha256Hex(of: temporaryURL) != expected {
+                    try? manager.removeItem(at: temporaryURL)
+                    completion(.failure(UpdateError.checksumMismatch))
+                    return
+                }
                 let downloads = manager.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
                 try manager.createDirectory(at: downloads, withIntermediateDirectories: true)
                 let destination = availableDownloadURL(named: fileName, in: downloads, fileManager: manager)

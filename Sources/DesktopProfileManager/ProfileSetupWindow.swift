@@ -13,6 +13,9 @@ final class ProfileSetupWindow: NSObject, NSWindowDelegate {
     private var optionSwitches: [(key: String, button: NSButton)] = []
     private var systemSwitches: [(key: String, button: NSButton)] = []
     private var appCheckboxes: [(name: String, button: NSButton)] = []
+    /// Systemzustände älterer Profile ohne eigenen Schalter (z. B. „dnd“).
+    /// Sie bleiben beim Bearbeiten unverändert erhalten.
+    private var legacySystemKeys: [String] = []
 
     init(app: AppDelegate, editName: String?) {
         self.app = app
@@ -130,7 +133,8 @@ final class ProfileSetupWindow: NSObject, NSWindowDelegate {
             ("capture_browser_tabs", L("Browser-Tabs (Safari, Chrome, Edge)", "Browser tabs (Safari, Chrome, Edge)")),
         ]
         for (key, text) in optionDefs {
-            let on = isEdit ? (savedSettings[key] as? Bool ?? true) : true
+            let fallback = key != "capture_browser_tabs"
+            let on = isEdit ? (savedSettings[key] as? Bool ?? fallback) : true
             optionSwitches.append((key, addSwitch(text, on: on)))
         }
         yCursor -= 6
@@ -138,7 +142,10 @@ final class ProfileSetupWindow: NSObject, NSWindowDelegate {
         // Systemzustand
         label(L("Systemzustand (optional):", "System state (optional):"), bold: true)
         yCursor -= 26
-        let savedSysKeys = Set(savedSettings["system_state_keys"] as? [String] ?? [])
+        let savedSysKeyList = savedSettings["system_state_keys"] as? [String] ?? []
+        let savedSysKeys = Set(savedSysKeyList)
+        let knownSysKeys = Set(SystemState.optionOrder.map { $0.key })
+        legacySystemKeys = savedSysKeyList.filter { !knownSysKeys.contains($0) }
         for opt in SystemState.optionOrder {
             let text = Localization.current == .en ? opt.en : opt.de
             let on = isEdit ? savedSysKeys.contains(opt.key) : false
@@ -216,13 +223,32 @@ final class ProfileSetupWindow: NSObject, NSWindowDelegate {
         window?.close()
     }
 
+    private func showAlert(_ title: String, _ text: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = text
+        if let window { alert.beginSheetModal(for: window) } else { alert.runModal() }
+    }
+
     @objc func onCreate() {
-        let name = nameField.stringValue.trimmingCharacters(in: .whitespaces)
-        if name.isEmpty {
-            let alert = NSAlert()
-            alert.messageText = L("Profilname fehlt", "Profile name missing")
-            alert.informativeText = L("Bitte einen Namen für das Profil eingeben.", "Please enter a name for the profile.")
-            alert.runModal()
+        let rawName = nameField.stringValue.trimmingCharacters(in: .whitespaces)
+        if rawName.isEmpty {
+            showAlert(L("Profilname fehlt", "Profile name missing"),
+                      L("Bitte einen Namen für das Profil eingeben.", "Please enter a name for the profile."))
+            return
+        }
+        // Vor dem Schließen prüfen, damit Eingaben bei Fehlern erhalten bleiben.
+        guard let name = Profiles.validatedName(rawName) else {
+            showAlert(L("Ungültiger Profilname", "Invalid profile name"),
+                      L("Erlaubt sind Buchstaben, Ziffern, Leerzeichen, - und _. Der Name darf nicht mit _ beginnen.",
+                        "Allowed are letters, digits, spaces, - and _. The name must not start with _."))
+            return
+        }
+        let isRename = editName.map { $0.lowercased() != name.lowercased() } ?? true
+        if isRename && Profiles.exists(name) {
+            showAlert(L("Profil existiert bereits", "Profile already exists"),
+                      L("Ein Profil mit dem Namen '\(name)' ist bereits vorhanden.",
+                        "A profile named '\(name)' already exists."))
             return
         }
         var options = Profiles.SaveOptions()
@@ -238,6 +264,7 @@ final class ProfileSetupWindow: NSObject, NSWindowDelegate {
             }
         }
         options.systemStateKeys = systemSwitches.filter { $0.button.state == .on }.map { $0.key }
+            + legacySystemKeys
         options.emoji = emojiField.stringValue.trimmingCharacters(in: .whitespaces)
         options.wifiSSID = wifiField.stringValue.trimmingCharacters(in: .whitespaces)
         options.includedApps = appCheckboxes.filter { $0.button.state == .on }.map { $0.name }
@@ -249,6 +276,10 @@ final class ProfileSetupWindow: NSObject, NSWindowDelegate {
         } else {
             app?.doSaveWithOptions(name, options: options)
         }
+    }
+
+    func close() {
+        window?.close()
     }
 
     func windowWillClose(_ notification: Notification) {

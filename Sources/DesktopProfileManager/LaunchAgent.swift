@@ -3,9 +3,17 @@ import Foundation
 /// Autostart über einen macOS LaunchAgent (analog zur Python-App).
 enum LaunchAgentManager {
     static let label = "com.desktopprofilemanager.swift"
+    /// Kennzeichnet einen Start durch den Agenten, damit nur echte Anmeldungen
+    /// eine Login-Wiederherstellung auslösen.
+    static let loginArgument = "--launched-at-login"
     static var plistPath: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/LaunchAgents/\(label).plist")
+    }
+
+    /// Schnelle Prüfung ohne Hilfsprozess – geeignet für den Menüaufbau.
+    static func isInstalled() -> Bool {
+        FileManager.default.fileExists(atPath: plistPath.path)
     }
 
     static func isEnabled() -> Bool {
@@ -27,20 +35,18 @@ enum LaunchAgentManager {
         let bundleURL = Bundle.main.bundleURL
         if bundleURL.pathExtension == "app" {
             // Über `open -g` (im Hintergrund, ohne Fokus) das App-Bundle starten.
-            return ["/usr/bin/open", "-g", bundleURL.path]
+            return ["/usr/bin/open", "-g", bundleURL.path, "--args", loginArgument]
         }
         // Fallback (z. B. im DEV-Lauf ohne Bundle): direkt das Binary.
         let exe = Bundle.main.executablePath ?? CommandLine.arguments[0]
-        return [exe]
+        return [exe, loginArgument]
     }
 
-    /// Aktiviert den Agenten und gibt bei Fehler eine verständliche Meldung zurück.
-    static func enable() -> String? {
-        let programArgs = launchProgramArguments()
-        let argsXML = programArgs
+    static func plistContents(programArguments: [String]) -> String {
+        let argsXML = programArguments
             .map { "        <string>\(xmlEscape($0))</string>" }
             .joined(separator: "\n")
-        let plist = """
+        return """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
           "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -59,6 +65,26 @@ enum LaunchAgentManager {
         </dict>
         </plist>
         """
+    }
+
+    /// Aktualisiert einen bestehenden Agenten (z. B. aus einer älteren Version
+    /// ohne Login-Kennzeichen oder nach dem Verschieben der App). launchd liest
+    /// die Datei bei der nächsten Anmeldung neu ein.
+    static func refreshInstalledPlistIfNeeded() {
+        let bundlePath = Bundle.main.bundleURL.path
+        // Nicht auf ein eingehängtes DMG oder eine verschobene Kopie (App
+        // Translocation) umbiegen – diese Pfade existieren beim Login nicht mehr.
+        guard isInstalled(), Bundle.main.bundleURL.pathExtension == "app",
+              !bundlePath.hasPrefix("/Volumes/"),
+              !bundlePath.contains("/AppTranslocation/") else { return }
+        let desired = plistContents(programArguments: launchProgramArguments())
+        guard (try? String(contentsOf: plistPath, encoding: .utf8)) != desired else { return }
+        try? desired.write(to: plistPath, atomically: true, encoding: .utf8)
+    }
+
+    /// Aktiviert den Agenten und gibt bei Fehler eine verständliche Meldung zurück.
+    static func enable() -> String? {
+        let plist = plistContents(programArguments: launchProgramArguments())
         do {
             try FileManager.default.createDirectory(at: plistPath.deletingLastPathComponent(),
                                                     withIntermediateDirectories: true)

@@ -113,7 +113,8 @@ emoji, and the profile name.</p>
   <li><strong>Overwrite: &lt;profile&gt;</strong> – Saves the current desktop state into an existing profile,
     keeping its previous settings.</li>
 </ul>
-<div class="note">Profile names may contain letters, numbers, spaces, hyphens, and underscores. A new
+<div class="note">Profile names may contain letters, numbers, spaces, hyphens, and underscores, but
+must not start with an underscore (reserved for internal files such as <code>_config.json</code>). A new
 name must not already exist; use “Overwrite” or “Edit profile” to update an existing profile.</div>
 
 <h3>🔄 Restore profile</h3>
@@ -123,17 +124,19 @@ bundled in a submenu.</p>
 <h3>👁 Show/hide desktop icons …</h3>
 <p>Opens a window listing all items on the desktop. For each entry you decide whether the icon is visible
 or hidden. The state can become part of a profile. When hiding an icon, the app disables Finder's
-system-wide display of hidden files so the icons do not remain visible in a dimmed state.</p>
+system-wide display of hidden files so the icons do not remain visible in a dimmed state. Finder is
+only restarted for this if that display was actually turned on.</p>
 
 <h3>🚀 Select apps for profiles …</h3>
 <p>Opens a window with all running apps and defines a global <strong>exclusion list</strong>: checked apps
-are not captured when saving new profiles.</p>
+are not captured when saving new profiles. Exclusions for apps that are not currently running are kept.</p>
 
 <h3>🧩 Show profile widget</h3>
 <p>Shows a freely movable widget with one button per profile.</p>
 <ul>
   <li>Borderless and transparent – only the buttons are visible.</li>
-  <li>Movable by dragging; the position is saved.</li>
+  <li>Movable by dragging; the position is saved. If it is no longer on any screen, the widget
+    reappears at its default position.</li>
   <li>The active profile is highlighted; visibility persists across restarts.</li>
 </ul>
 
@@ -150,8 +153,12 @@ login” and “😴 Restore after sleep” – these work even when auto restor
 
 <h3>🧩 Auto restore desktop icons only</h3>
 <p>Defines <strong>what</strong> the automatic restoration (interval timer, login, sleep) applies. Off
-(default): the full profile including wallpaper, apps and system state. On: only the desktop icon
-positions. Manual restoring via the quick menu is not affected.</p>
+(default): the profile including hidden icons, wallpaper and system state; of these, only restoring at
+login launches apps (including restarting browsers). On: only the desktop icon positions. Manual
+restoring via the quick menu is not affected.</p>
+<div class="note"><strong>Protecting running work:</strong> the interval timer and “Restore after sleep”
+never launch apps, never restart browsers, and never hide or quit other apps. Other apps are quit only
+during a manual switch (menu, widget, shortcut).</div>
 
 <h3>⏰ Interval</h3>
 <p>Defines how often auto restore runs (5–240 minutes). The active value is marked with a checkmark.</p>
@@ -165,26 +172,37 @@ to clear the selection – no automatic restoration will then take place.</p>
 <ul>
   <li>Saved icon positions, hidden icons, and wallpaper are preserved – the desktop is not re-captured.</li>
   <li>Only name, emoji, Wi-Fi assignment, app selection, system states, and content options are changed.</li>
+  <li>Already saved system states and browser tabs are preserved; only newly added apps, system states,
+    or browser tabs enabled for the first time are captured now.</li>
   <li>Profiles can also be renamed here; associated time and Wi-Fi rules are updated too.</li>
 </ul>
 
 <h3>🗑 Delete profile</h3>
-<p>Permanently removes the chosen profile after a confirmation prompt. This cannot be undone.</p>
+<p>Permanently removes the chosen profile after a confirmation prompt. This cannot be undone. If it was
+the auto-restore profile, that selection is cleared and the timer stops; related time and Wi-Fi rules are
+removed.</p>
 
 <h3>📤 Export profile</h3>
 <p>Saves the chosen profile as a <code>.json</code> file at a location of your choice – for backup or sharing.</p>
 
 <h3>📥 Import profile …</h3>
-<p>Loads a previously exported <code>.json</code> profile file and adds it to your profiles.</p>
+<p>Loads a previously exported <code>.json</code> profile file and adds it to your profiles. Invalid or
+unknown values are discarded. If the name already exists, the imported profile gets a number (e.g.
+“Work 2”); existing profiles are never overwritten.</p>
 
 <h3>Restore switches</h3>
 <ul>
-  <li><strong>🔁 Restore icons at login</strong> – Applies the auto-restore profile at login.</li>
-  <li><strong>😴 Restore after sleep</strong> – Restores after the Mac wakes from sleep.</li>
+  <li><strong>🔁 Restore icons at login</strong> – Applies the auto-restore profile at login – only on an
+    actual login, not every time the app is started manually.</li>
+  <li><strong>😴 Restore after sleep</strong> – Restores after the Mac wakes from sleep (without launching
+    apps or hiding/quitting other apps).</li>
   <li><strong>🖼 Restore wallpaper too</strong> – Also sets the saved wallpaper.</li>
-  <li><strong>🚀 Launch apps on restore</strong> – Launches the saved apps and restores their windows.</li>
-  <li><strong>🙈 Hide other apps when switching</strong> – Hides non-profile apps (like <kbd>⌘H</kbd>) without quitting them.</li>
-  <li><strong>⛔ Quit other apps when switching</strong> – Quits non-profile apps (caution: unsaved work may be lost).</li>
+  <li><strong>🚀 Launch apps on restore</strong> – Launches the saved apps and restores their windows (for
+    manual switches and at login).</li>
+  <li><strong>🙈 Hide other apps when switching</strong> – Hides non-profile apps (like <kbd>⌘H</kbd>) without
+    quitting them (for manual switches and auto switch). Browsers with profile tabs stay visible.</li>
+  <li><strong>⛔ Quit other apps when switching</strong> – Quits non-profile apps, only during manual switches
+    (caution: unsaved work may be lost).</li>
 </ul>
 <div class="note">Note: <em>Hide</em> and <em>Quit</em> are mutually exclusive in practice – usually choose
 at most one of them.</div>
@@ -194,8 +212,9 @@ at most one of them.</div>
 system when launching many programs.</p>
 
 <h3>🔓 Start at login</h3>
-<p>Sets up a LaunchAgent so the app starts automatically when you log in. The switch is shown as on only
-when macOS has actually loaded the service; the app displays an error if setup fails.</p>
+<p>Sets up a LaunchAgent so the app starts automatically when you log in. The switch shows whether start
+at login is set up; the app displays an error if macOS cannot load the service. After the app is moved
+or updated, an existing start-at-login setup is adjusted automatically.</p>
 
 <h3>⌨️ Shortcuts 1–9</h3>
 <p>Enables global keyboard shortcuts: modifier + keys <strong>1–9</strong> restore the first nine profiles
@@ -214,6 +233,10 @@ each with 1–9.</p>
   <li>Below, active Wi-Fi assignments and configured rules are listed; clicking a rule with the
     <em>(delete)</em> suffix removes it.</li>
 </ul>
+<div class="note">Time rules take precedence over Wi-Fi assignments; time ranges across midnight (e.g.
+<code>22:00-06:00</code>) are supported. For Wi-Fi detection, macOS requires <strong>Location Services</strong>
+permission (<em>System Settings › Privacy &amp; Security › Location Services</em>); the app asks once when
+auto switch is enabled. Auto switch never launches or quits apps.</div>
 
 <h3>🌐 Language</h3>
 <p>Sets the interface language: <strong>System</strong> (follows the Mac), <strong>German</strong>, or
@@ -223,7 +246,8 @@ each with 1–9.</p>
 <p>Checks online whether a newer version is available and shows the result. After confirmation, the DMG
 is downloaded directly to <strong>Downloads</strong> and opened. Then drag the app to
 <strong>Applications</strong> and restart it. If a release does not contain a DMG file, the app opens its
-release page instead.</p>
+release page instead. If GitHub provides a SHA-256 checksum, the download is verified against it; on a
+mismatch the file is deleted.</p>
 
 <h3>ℹ️ Status line</h3>
 <p>Display only (not clickable): shows whether auto restore is active and, if so, with which profile and
@@ -257,8 +281,11 @@ interval.</p>
     reopened reliably without a browser extension. URLs can contain
     search terms, internal addresses, or parameters and are stored in the profile. File URLs are captured
     only for local, absolute paths. Browser window positions require Accessibility permission. Existing
-    profiles must be overwritten once so the browser position is stored separately.</li>
-  <li><strong>System state</strong> – dark mode, volume, brightness, Do Not Disturb, Dock, desktop view.</li>
+    profiles must be overwritten once so the browser position is stored separately. Incognito windows are
+    not captured; if a browser does not respond while overwriting, its previous tabs are kept.</li>
+  <li><strong>System state</strong> – dark mode, volume, brightness, Dock, desktop view. Do Not Disturb is no
+    longer offered (no reliable macOS interface); older profiles still switch Focus via the shortcuts
+    “Focus On”/“Focus Off” if they exist.</li>
   <li><strong>App list</strong> – which running apps belong to the profile (with <em>Select all</em>).</li>
 </ul>
 
@@ -289,6 +316,12 @@ separately stored browser position to older profiles.</p>
 Profile items in the menu and widget remain disabled until the current switch has completed. Shortcuts
 and automatic rules also cannot start a second switch during this time. This prevents browser quit,
 tab launch, and window restoration operations from overlapping.</p>
+<p><strong>Wi-Fi auto switch does not react.</strong><br>
+Allow the app under <em>Privacy &amp; Security › Location Services</em>. Without this permission macOS does
+not reveal the Wi-Fi name.</p>
+<p><strong>I do not receive notifications.</strong><br>
+The app uses macOS notifications and asks for permission the first time. If you denied it, enable it under
+<em>System Settings › Notifications › Desktop Profile Manager</em>.</p>
 <p><strong>The widget is hidden after a restart.</strong><br>
 Visibility is saved permanently. Re-enable the widget via <em>Settings › Show profile widget</em>.</p>
 
